@@ -4,365 +4,122 @@ import (
 	"testing"
 )
 
-func TestLogPosition_ordering(t *testing.T) {
-	a := LogPosition{1, 2}
-	b := LogPosition{1, 2}
-	c := LogPosition{1, 3}
-	d := LogPosition{2, 0}
+func TestHash(t *testing.T) {
+	raw := "BABE00000000000000000000000000000000000000000000000000000000CAFE"
 
-	if !a.Equals(b) {
-		t.Errorf("%s != %s", a, b)
+	var h Hash
+
+	if err := (&h).UnmarshalText([]byte(raw)); err != nil {
+		t.Fatalf("failed to UnmarshalText(): %s", err)
 	}
 
-	if a.IsAfterOf(b) {
-		t.Errorf("%s < %s", a, b)
+	if text, err := h.MarshalText(); err != nil {
+		t.Errorf("failed to MarshalText(): %s", err)
+	} else if string(text) != raw {
+		t.Errorf("unexpected MarshalText() text: %s", text)
 	}
 
-	if a.IsBeforeOf(b) {
-		t.Errorf("%s > %s", a, b)
-	}
-
-	if a.Equals(c) {
-		t.Errorf("%s == %s", a, c)
-	}
-
-	if a.IsAfterOf(c) {
-		t.Errorf("%s < %s", a, c)
-	}
-
-	if !a.IsBeforeOf(c) {
-		t.Errorf("%s > %s", a, c)
-	}
-
-	if c.Equals(a) {
-		t.Errorf("%s == %s", c, a)
-	}
-
-	if !c.IsAfterOf(a) {
-		t.Errorf("%s < %s", c, a)
-	}
-
-	if c.IsBeforeOf(a) {
-		t.Errorf("%s > %s", c, a)
-	}
-
-	if a.Equals(d) {
-		t.Errorf("%s == %s", a, d)
-	}
-
-	if a.IsAfterOf(d) {
-		t.Errorf("%s < %s", a, d)
-	}
-
-	if !a.IsBeforeOf(d) {
-		t.Errorf("%s > %s", a, d)
-	}
-
-	if d.Equals(a) {
-		t.Errorf("%s == %s", d, a)
-	}
-
-	if !d.IsAfterOf(a) {
-		t.Errorf("%s < %s", d, a)
-	}
-
-	if d.IsBeforeOf(a) {
-		t.Errorf("%s > %s", d, a)
+	str := h.String()
+	if str != raw {
+		t.Errorf("unexpected String() text: %s", str)
 	}
 }
 
-func TestLogPosition_IsNextOf(t *testing.T) {
-	if !(LogPosition{1, 1}).IsNextOf(LogPosition{1, 0}) {
-		t.Errorf("expected 1:0 -> 1:1 but not")
-	}
-	if !(LogPosition{2, 0}).IsNextOf(LogPosition{1, 1}) {
-		t.Errorf("expected 1:1 -> 2:0 but not")
-	}
-	if !(LogPosition{2, 0}).IsNextOf(LogPosition{1, 0}) {
-		t.Errorf("expected 1:0 -> 2:0 but not")
+func TestLogEntry_IsNextOf(t *testing.T) {
+	zero := LogPosition{}
+
+	one := LogEntry{LogPosition{1, MustParseHash("BBA93BC3DE160DEB29AA219D875B4FF8BBA8E6BF1CFC90076427323F88657EBF")}, "hello world"}
+	two := LogEntry{LogPosition{2, MustParseHash("7D27877DED340FE46F05A1C056636B57AB2DB99C98A339BA1EE4B23200AE5A22")}, "foobar"}
+
+	unrelated := LogEntry{LogPosition{1, MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0")}, "hello world"}
+	invalid := LogEntry{LogPosition{1, Hash{}}, "hello world"}
+
+	if !one.IsNextOf(zero) {
+		t.Errorf("expected true but got false")
 	}
 
-	if (LogPosition{1, 0}).IsNextOf(LogPosition{1, 0}) {
-		t.Errorf("expected isn't 1:0 -> 1:0 but is it")
+	if !two.IsNextOf(one.LogPosition) {
+		t.Errorf("expected true but got false")
 	}
-	if (LogPosition{1, 0}).IsNextOf(LogPosition{1, 1}) {
-		t.Errorf("expected isn't 1:1 -> 1:0 but is it")
+
+	if one.IsNextOf(two.LogPosition) {
+		t.Errorf("expected false because reversed order but got true")
 	}
-	if (LogPosition{1, 0}).IsNextOf(LogPosition{2, 0}) {
-		t.Errorf("expected isn't 2:0 -> 1:0 but is it")
+
+	if one.IsNextOf(unrelated.LogPosition) {
+		t.Errorf("expected false because unrelated entry but got true")
 	}
-	if (LogPosition{2, 1}).IsNextOf(LogPosition{1, 0}) {
-		t.Errorf("expected isn't 1:0 -> 2:1 but is it")
+
+	if two.IsNextOf(invalid.LogPosition) {
+		t.Errorf("expected false because broken entry but got true")
 	}
 }
 
-func TestLogStore_validation_empty(t *testing.T) {
-	empty := InMemoryLogStore{
-		committed: LogPosition{
-			TermID: 0,
-			Index:  0,
-		},
+func TestMakeLogEntries(t *testing.T) {
+	entries, err := MakeLogEntries(LogPosition{}, []interface{}{"hello world", "foobar", "hogefuga"})
+	if err != nil {
+		t.Fatalf("failed to make log entries: %s", err)
 	}
 
-	if empty.IsValid() {
-		t.Errorf("empty log store is must be invalid")
+	if !validateLog(LogPosition{}, entries) {
+		t.Errorf("made log entries was reports as invalid")
 	}
 }
 
-func TestLogStore_validation_valid(t *testing.T) {
+func TestLogStore_IsValid_valid(t *testing.T) {
+	empty := InMemoryLogStore{}
+
+	if !empty.IsValid() {
+		t.Errorf("empty log store is must be valid but not")
+	}
+
 	valid := InMemoryLogStore{
 		entries: []LogEntry{
-			{LogPosition{1, 0}, ""},
-			{LogPosition{1, 1}, ""},
-			{LogPosition{2, 0}, ""},
+			{LogPosition{1, MustParseHash("BBA93BC3DE160DEB29AA219D875B4FF8BBA8E6BF1CFC90076427323F88657EBF")}, "hello world"},
+			{LogPosition{2, MustParseHash("7D27877DED340FE46F05A1C056636B57AB2DB99C98A339BA1EE4B23200AE5A22")}, "foobar"},
+			{LogPosition{3, MustParseHash("482D70EDAA819DB458320E7DE7B84726B40F1FB43C4BD8C32216360CE5DAEC61")}, "hogefuga"},
 		},
 	}
 
 	if !valid.IsValid() {
 		t.Errorf("must be valid but not")
 	}
-
-	if !valid.IsValidSince(LogPosition{1, 1}) {
-		t.Errorf("must be valid but not")
-	}
 }
 
-func TestLogStore_validation_invalid(t *testing.T) {
-	termOrder := InMemoryLogStore{
+func TestLogStore_IsValid_invalid(t *testing.T) {
+	indexOrder := InMemoryLogStore{
 		entries: []LogEntry{
-			{LogPosition{2, 0}, ""},
-			{LogPosition{1, 0}, ""},
+			{LogPosition{1, MustParseHash("BBA93BC3DE160DEB29AA219D875B4FF8BBA8E6BF1CFC90076427323F88657EBF")}, "hello world"},
+			{LogPosition{3, MustParseHash("7D27877DED340FE46F05A1C056636B57AB2DB99C98A339BA1EE4B23200AE5A22")}, "foobar"},
+			{LogPosition{2, MustParseHash("482D70EDAA819DB458320E7DE7B84726B40F1FB43C4BD8C32216360CE5DAEC61")}, "hogefuga"},
 		},
 	}
 
-	if termOrder.IsValid() {
-		t.Errorf("must be invalid because reversed term order")
-	}
-
-	indexOrderSkip := InMemoryLogStore{
-		entries: []LogEntry{
-			{LogPosition{1, 1}, ""},
-			{LogPosition{1, 3}, ""},
-		},
-	}
-
-	if indexOrderSkip.IsValid() {
-		t.Errorf("must be invalid because skipped index order")
-	}
-
-	indexOrderReverse := InMemoryLogStore{
-		entries: []LogEntry{
-			{LogPosition{1, 1}, ""},
-			{LogPosition{1, 0}, ""},
-		},
-	}
-
-	if indexOrderReverse.IsValid() {
-		t.Errorf("must be invalid because reversed index order")
+	if indexOrder.IsValid() {
+		t.Errorf("must be invalid because broken index")
 	}
 
 	firstIndex := InMemoryLogStore{
 		entries: []LogEntry{
-			{LogPosition{1, 0}, ""},
-			{LogPosition{2, 1}, ""},
+			{LogPosition{2, MustParseHash("BBA93BC3DE160DEB29AA219D875B4FF8BBA8E6BF1CFC90076427323F88657EBF")}, "hello world"},
+			{LogPosition{3, MustParseHash("7D27877DED340FE46F05A1C056636B57AB2DB99C98A339BA1EE4B23200AE5A22")}, "foobar"},
+			{LogPosition{4, MustParseHash("482D70EDAA819DB458320E7DE7B84726B40F1FB43C4BD8C32216360CE5DAEC61")}, "hogefuga"},
 		},
 	}
 
 	if firstIndex.IsValid() {
-		t.Errorf("must be invalid because first index of term is non zero")
+		t.Errorf("must be invalid because first index isn't zero")
 	}
 
-	duplicated := InMemoryLogStore{
+	hash := InMemoryLogStore{
 		entries: []LogEntry{
-			{LogPosition{1, 0}, ""},
-			{LogPosition{1, 0}, ""},
+			{LogPosition{1, MustParseHash("BBA93BC3DE160DEB29AA219D875B4FF8BBA8E6BF1CFC90076427323F88657EBF")}, "hello world"},
+			{LogPosition{2, MustParseHash("7D27877DED340FE46F05A1C056636B57AB2DB99C98A339BA1EE4B23200AE5A22")}, "foobar"},
+			{LogPosition{3, MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0")}, "hogefuga"},
 		},
 	}
 
-	if duplicated.IsValid() {
-		t.Errorf("must be invalid because duplicated log entry")
-	}
-}
-
-func TestLogStore_IsValidSince(t *testing.T) {
-	log := InMemoryLogStore{
-		entries: []LogEntry{
-			{LogPosition{5, 9}, ""},
-			{LogPosition{1, 0}, ""},
-			{LogPosition{1, 0}, ""},
-			{LogPosition{1, 1}, ""},
-			{LogPosition{1, 2}, ""},
-			{LogPosition{2, 0}, ""},
-		},
-	}
-
-	if !log.IsValidSince(LogPosition{1, 0}) {
-		t.Errorf("must be valid but not")
-	}
-
-	if log.IsValid() {
-		t.Errorf("must be invalid because broken log entry")
-	}
-}
-
-func TestLogStore_dropAfter(t *testing.T) {
-	store := InMemoryLogStore{
-		entries: []LogEntry{
-			{LogPosition{1, 0}, ""},
-			{LogPosition{1, 1}, ""},
-			{LogPosition{1, 2}, ""},
-			{LogPosition{2, 0}, ""},
-		},
-	}
-
-	store.dropAfter(LogPosition{2, 0})
-
-	if len(store.entries) != 3 {
-		t.Errorf("failed to drop 1 entry")
-	}
-
-	store.dropAfter(LogPosition{1, 1})
-
-	if len(store.entries) != 1 {
-		t.Errorf("failed to drop 2 entries")
-	}
-
-	store.dropAfter(LogPosition{0, 0})
-
-	if len(store.entries) != 0 {
-		t.Errorf("failed to drop all entries")
-	}
-}
-
-func TestLogStore_Staging(t *testing.T) {
-	store := InMemoryLogStore{}
-
-	err := store.Staging([]LogEntry{
-		{LogPosition{1, 0}, ""},
-		{LogPosition{1, 1}, ""},
-		{LogPosition{2, 0}, ""},
-		{LogPosition{1, 0}, ""},
-	})
-	if err == nil {
-		t.Errorf("must be failed to staging because broken term order")
-	} else if err.Error() != "log order is broken" {
-		t.Errorf("unexpected error: %s", err)
-	}
-	if len(store.entries) != 0 {
-		t.Errorf("unexpected entries count: %d", len(store.entries))
-	}
-
-	err = store.Staging([]LogEntry{
-		{LogPosition{1, 0}, ""},
-		{LogPosition{1, 1}, ""},
-		{LogPosition{2, 0}, ""},
-	})
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-	if len(store.entries) != 3 {
-		t.Errorf("unexpected entries count: %d", len(store.entries))
-	}
-	if !store.LastEntry().LogPosition.Equals(LogPosition{2, 0}) {
-		t.Errorf("unexpected last entry position: %s", store.LastEntry().LogPosition)
-	}
-
-	err = store.Staging([]LogEntry{
-		{LogPosition{2, 1}, ""},
-		{LogPosition{4, 0}, ""},
-	})
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-	if len(store.entries) != 5 {
-		t.Errorf("unexpected entries count: %d", len(store.entries))
-	}
-	if !store.LastEntry().LogPosition.Equals(LogPosition{4, 0}) {
-		t.Errorf("unexpected last entry position: %s", store.LastEntry().LogPosition)
-	}
-
-	err = store.Staging([]LogEntry{
-		{LogPosition{5, 1}, ""},
-	})
-	if err == nil {
-		t.Errorf("must be failed to staging because broken term order")
-	} else if err.Error() != "log is not continuos" {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	err = store.Staging([]LogEntry{
-		{LogPosition{1, 2}, ""},
-	})
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-	if len(store.entries) != 3 {
-		t.Errorf("unexpected entries count: %d", len(store.entries))
-	}
-	if !store.LastEntry().LogPosition.Equals(LogPosition{1, 2}) {
-		t.Errorf("unexpected last entry position: %s", store.LastEntry().LogPosition)
-	}
-
-	err = store.Staging([]LogEntry{})
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-}
-
-func TestLogStore_Commit(t *testing.T) {
-	empty := InMemoryLogStore{}
-
-	if err := empty.Commit(LogPosition{2, 0}); err == nil {
-		t.Errorf("must be failed to commit because not staged any log")
-	} else if err.Error() != "Log[2:0] is not staged" {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	if err := empty.Commit(LogPosition{0, 0}); err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	notStaged := InMemoryLogStore{
-		entries: []LogEntry{
-			{LogPosition{1, 0}, ""},
-			{LogPosition{1, 1}, ""},
-			{LogPosition{2, 0}, ""},
-		},
-		committed: LogPosition{0, 0},
-	}
-
-	if err := notStaged.Commit(LogPosition{2, 1}); err == nil {
-		t.Errorf("must be failed to commit because not staged yet")
-	} else if err.Error() != "Log[2:1] is not staged" {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	alreadyCommit := InMemoryLogStore{
-		entries: []LogEntry{
-			{LogPosition{1, 0}, ""},
-			{LogPosition{1, 1}, ""},
-			{LogPosition{2, 0}, ""},
-		},
-		committed: LogPosition{2, 0},
-	}
-
-	if err := alreadyCommit.Commit(LogPosition{1, 1}); err == nil {
-		t.Errorf("must be failed to commit because already committed")
-	} else if err.Error() != "Log[1:1] is already committed" {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	valid := InMemoryLogStore{
-		entries: []LogEntry{
-			{LogPosition{5, 9}, ""},
-			{LogPosition{1, 0}, ""},
-			{LogPosition{1, 1}, ""},
-			{LogPosition{2, 0}, ""},
-		},
-		committed: LogPosition{1, 0},
-	}
-
-	if err := valid.Commit(LogPosition{2, 0}); err != nil {
-		t.Errorf("failed to commit: %s", err)
+	if hash.IsValid() {
+		t.Errorf("must be invalid because broken hash")
 	}
 }

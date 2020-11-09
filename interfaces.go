@@ -6,7 +6,7 @@ type Manager interface {
 	Hosts() []*Host
 	OnRequestVote(c Communicator, t Term) error
 	OnLogAppend(l LogMessage) error
-	AppendLog(c Communicator, payloads []string) error
+	AppendLog(c Communicator, payloads []interface{}) error
 	Manage(c Communicator)
 }
 
@@ -17,11 +17,7 @@ type Communicator interface {
 
 type LogStore interface {
 	Entries() []LogEntry
-	LastEntry() LogEntry
-	Committed() LogPosition
-	Staged() []LogEntry
-	IsValidSince(p LogPosition) bool
+	LastPosition() LogPosition
 	IsValid() bool
-	Staging(es []LogEntry) error
-	Commit(p LogPosition) error
+	Append(es []LogEntry) error
 }

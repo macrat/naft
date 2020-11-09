@@ -7,8 +7,7 @@ import (
 
 type LogMessage struct {
 	Term        Term        `json:"term"`
-	CommitIndex LogPosition `json:"commit"`
-	Stage       []LogEntry  `json:"stage"`
+	Entries     []LogEntry  `json:"entries"`
 }
 
 func ParseLogMessage(r io.Reader) (l LogMessage, err error) {

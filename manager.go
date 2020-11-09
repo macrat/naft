@@ -70,23 +70,20 @@ func (m *SimpleManager) OnLogAppend(l LogMessage) error {
 	m.term = l.Term
 	m.leaderExpire = time.Now().Add(m.LeaderTTL)
 
-	if err := m.Log.Staging(l.Stage); err != nil {
-		return err
-	}
-	if err := m.Log.Commit(l.CommitIndex); err != nil {
+	if err := m.Log.Append(l.Entries); err != nil {
 		return err
 	}
 
 	return nil
 }
 
-func (m *SimpleManager) AppendLog(c Communicator, payloads []string) error {
+func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error {
 	if len(payloads) == 0 {
 		return nil
 	}
 
-	entries := MakeLogEntries(m.Log.Committed(), m.term.ID, payloads)
-	if err := m.Log.Staging(entries); err != nil {
+	entries, err := MakeLogEntries(m.Log.LastPosition(), payloads)
+	if err != nil {
 		return err
 	}
 
@@ -94,10 +91,14 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []string) error {
 		return err
 	}
 
+	if err = m.Log.Append(entries); err != nil {
+		return err
+	}
+
 	return nil
 }
 
-func (m *SimpleManager) sendLogAppend(c Communicator, stage []LogEntry) chan error {
+func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan error {
 	errch := make(chan error)
 
 	go (func(errch chan error) {
@@ -108,8 +109,7 @@ func (m *SimpleManager) sendLogAppend(c Communicator, stage []LogEntry) chan err
 
 		msg := LogMessage{
 			Term: m.term,
-			CommitIndex: m.Log.Committed(),
-			Stage: stage,
+			Entries: entries,
 		}
 
 		for _, h := range m.hosts {
@@ -124,20 +124,13 @@ func (m *SimpleManager) sendLogAppend(c Communicator, stage []LogEntry) chan err
 		}
 
 		closed := false
-		staged := 0
+		success := 0
 		for range m.hosts {
 			if <-ch {
-				staged++
+				success++
 			}
-			if staged > len(m.hosts)/2 && !closed {
+			if success > len(m.hosts)/2 && !closed {
 				closed = true
-				if len(stage) != 0 {
-					if err := m.Log.Commit(stage[len(stage) - 1].LogPosition); err != nil {
-						log.Printf("leader[%d]: failed to log commit: %s", m.term.ID, err)
-						errch <- err
-						continue
-					}
-				}
 				errch <- nil
 			}
 		}
@@ -192,7 +185,8 @@ func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 
 				// DEBUG BEGIN
 				m.term.Leader = m.self
-				m.AppendLog(c, []string{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, term.ID)})
+				err := m.AppendLog(c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, term.ID)})
+				log.Printf("debug: failed to append log: %s", err)
 				// DEBUG END
 
 				closed = true
