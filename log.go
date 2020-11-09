@@ -152,7 +152,7 @@ func (l *InMemoryLogStore) IsValid() bool {
 }
 
 func (l *InMemoryLogStore) dropAfter(p LogPosition) {
-	i := p.Index
+	i := p.Index - 1
 	if i > uint64(len(l.entries)) {
 		i = uint64(len(l.entries))
 	}
