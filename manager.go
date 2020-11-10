@@ -43,22 +43,22 @@ func (m *SimpleManager) Hosts() []*Host {
 	return m.hosts
 }
 
-func (m *SimpleManager) OnRequestVote(c Communicator, t Term) error {
-	if m.term.ID > t.ID || (m.term.ID == t.ID && !t.Leader.Equals(m.self)) {
+func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) error {
+	if m.term.ID > r.Term.ID || (m.term.ID == r.Term.ID && !r.Term.Leader.Equals(m.self)) {
 		return fmt.Errorf("invalid term")
 	}
 
-	if m.term.ID != t.ID {
-		log.Printf("keep-alive: change term to %s", t)
+	if m.term.ID != r.Term.ID {
+		log.Printf("keep-alive: change term to %s", r.Term)
 
-		m.term = t
+		m.term = r.Term
 		m.leaderExpire = time.Now().Add(m.LeaderTTL)
 	}
 
 	return nil
 }
 
-func (m *SimpleManager) OnLogAppend(l LogMessage) error {
+func (m *SimpleManager) OnLogAppend(l LogAppendMessage) error {
 	if m.term.ID > l.Term.ID || (m.term.ID == l.Term.ID && (!m.term.Equals(l.Term) || m.term.Leader == nil)) {
 		return fmt.Errorf("invalid term")
 	}
@@ -82,7 +82,7 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error 
 		return nil
 	}
 
-	entries, err := MakeLogEntries(m.Log.LastHash(), payloads)
+	entries, err := MakeLogEntries(m.Log.Head(), payloads)
 	if err != nil {
 		return err
 	}
@@ -103,7 +103,7 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 		ch := make(chan bool)
 		defer close(ch)
 
-		msg := LogMessage{
+		msg := LogAppendMessage{
 			Term: m.term,
 			Entries: entries,
 		}
@@ -155,12 +155,15 @@ func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 			Leader: m.self,
 			ID:     m.term.ID,
 		}
+		req := VoteRequestMessage{
+			Term: term,
+		}
 
 		log.Printf("candidate[%d]: start request vote", term.ID)
 
 		for _, h := range m.hosts {
 			go (func(h *Host, ch chan bool) {
-				if err := c.SendRequestVote(h, term); err != nil {
+				if err := c.SendRequestVote(h, req); err != nil {
 					ch <- false
 					log.Printf("candidate[%d]: failed to send request vote: %s", term.ID, err)
 				} else {

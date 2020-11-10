@@ -99,15 +99,15 @@ func (l *InMemoryLogStore) Entries() []LogEntry {
 	return l.entries
 }
 
-func (l *InMemoryLogStore) LastEntry() *LogEntry {
+func (l *InMemoryLogStore) lastEntry() *LogEntry {
 	if len(l.entries) == 0 {
 		return nil
 	}
 	return &l.entries[len(l.entries)-1]
 }
 
-func (l *InMemoryLogStore) LastHash() Hash {
-	if e := l.LastEntry(); e != nil {
+func (l *InMemoryLogStore) Head() Hash {
+	if e := l.lastEntry(); e != nil {
 		return e.Hash
 	} else {
 		return Hash{}
@@ -163,7 +163,7 @@ func (l *InMemoryLogStore) Append(entries []LogEntry) error {
 
 	l.dropAfter(entries[0].Hash)
 
-	lastHash := l.LastHash()
+	lastHash := l.Head()
 
 	if len(l.entries) != 0 && !entries[0].IsNextOf(lastHash) {
 		return fmt.Errorf("log is not continuos")

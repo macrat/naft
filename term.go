@@ -1,21 +1,12 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
-	"io"
 )
 
 type Term struct {
 	Leader *Host `json:"leader"`
 	ID     int   `json:"id"`
-}
-
-func ParseTerm(r io.Reader) (t Term, err error) {
-	dec := json.NewDecoder(r)
-	err = dec.Decode(&t)
-
-	return
 }
 
 func (t Term) String() string {

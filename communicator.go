@@ -35,7 +35,7 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 }
 
 func (h *HTTPCommunicator) onLogAppend(w http.ResponseWriter, r *http.Request) {
-	l, err := ParseLogMessage(r.Body)
+	l, err := ReadLogAppendMessage(r.Body)
 	if err != nil {
 		log.Printf("log-append: %s", err)
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -53,17 +53,17 @@ func (h *HTTPCommunicator) onLogAppend(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request) {
-	term, err := ParseTerm(r.Body)
+	req, err := ReadVoteRequestMessage(r.Body)
 	if err != nil {
 		log.Printf("request-vote: %s", err)
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
 
-	err = h.manager.OnRequestVote(h, term)
+	err = h.manager.OnRequestVote(h, req)
 
 	if err != nil {
-		log.Printf("request-vote: %s: %s", term, err)
+		log.Printf("request-vote: %s: %s", req.Term, err)
 		http.Error(w, err.Error(), http.StatusConflict)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
@@ -125,10 +125,10 @@ func (h *HTTPCommunicator) send(target *Host, path string, data interface{}) err
 	return nil
 }
 
-func (h *HTTPCommunicator) SendLogAppend(target *Host, l LogMessage) error {
+func (h *HTTPCommunicator) SendLogAppend(target *Host, l LogAppendMessage) error {
 	return h.send(target, "/log/append", l)
 }
 
-func (h *HTTPCommunicator) SendRequestVote(target *Host, t Term) error {
-	return h.send(target, "/request-vote", t)
+func (h *HTTPCommunicator) SendRequestVote(target *Host, r VoteRequestMessage) error {
+	return h.send(target, "/request-vote", r)
 }
