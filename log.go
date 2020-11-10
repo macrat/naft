@@ -56,7 +56,7 @@ type LogEntry struct {
 }
 
 func (e LogEntry) String() string {
-	return fmt.Sprintf("LogEntry#%d", e.Hash)
+	return fmt.Sprintf("LogEntry#%s", e.Hash)
 }
 
 func (e LogEntry) IsNextOf(prev Hash) bool {
@@ -143,10 +143,28 @@ func (l *InMemoryLogStore) IsValid() bool {
 }
 
 func (l *InMemoryLogStore) find(h Hash) int {
-	for i := len(l.entries) - 1; i > 0; i-- {
-		return i
+	for i := len(l.entries) - 1; i >= 0; i-- {
+		if l.entries[i].Hash == h {
+			return i
+		}
 	}
 	return -1
+}
+
+func (l *InMemoryLogStore) Get(h Hash) (LogEntry, error) {
+	i := l.find(h)
+	if i < 0 {
+		return LogEntry{}, fmt.Errorf("no such log: #%s", h)
+	}
+	return l.entries[i], nil
+}
+
+func (l *InMemoryLogStore) Since(h Hash) ([]LogEntry, error) {
+	i := l.find(h)
+	if i < 0 {
+		return nil, fmt.Errorf("no such log: #%s", h)
+	}
+	return l.entries[i:], nil
 }
 
 func (l *InMemoryLogStore) dropAfter(h Hash) {

@@ -35,6 +35,10 @@ func (m *SimpleManager) IsLeader() bool {
 	return m.term.Leader.Equals(m.self)
 }
 
+func (m *SimpleManager) Leader() *Host {
+	return m.term.Leader
+}
+
 func (m *SimpleManager) CurrentTerm() Term {
 	return m.term
 }
