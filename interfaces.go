@@ -17,7 +17,8 @@ type Communicator interface {
 
 type LogStore interface {
 	Entries() []LogEntry
-	LastPosition() LogPosition
+	LastEntry() *LogEntry
+	LastHash() Hash
 	IsValid() bool
 	Append(es []LogEntry) error
 }

@@ -82,16 +82,12 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error 
 		return nil
 	}
 
-	entries, err := MakeLogEntries(m.Log.LastPosition(), payloads)
+	entries, err := MakeLogEntries(m.Log.LastHash(), payloads)
 	if err != nil {
 		return err
 	}
 
 	if err := <-m.sendLogAppend(c, entries); err != nil {
-		return err
-	}
-
-	if err = m.Log.Append(entries); err != nil {
 		return err
 	}
 
@@ -185,8 +181,9 @@ func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 
 				// DEBUG BEGIN
 				m.term.Leader = m.self
-				err := m.AppendLog(c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, term.ID)})
-				log.Printf("debug: failed to append log: %s", err)
+				if err := m.AppendLog(c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, term.ID)}); err != nil {
+					log.Printf("debug: failed to append log: %s", err)
+				}
 				// DEBUG END
 
 				closed = true

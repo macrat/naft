@@ -38,7 +38,7 @@ func CalcHash(prev Hash, data interface{}) (Hash, error) {
 }
 
 func (h Hash) String() string {
-	return fmt.Sprintf("%064X", h[:])
+	return fmt.Sprintf("%064x", h[:])
 }
 
 func (h Hash) MarshalText() (text []byte, err error) {
@@ -50,49 +50,36 @@ func (h *Hash) UnmarshalText(text []byte) error {
 	return err
 }
 
-type LogPosition struct {
-	Index uint64 `json:"index"`
-	Hash  Hash   `json:"hash"`
-}
-
-func (p LogPosition) String() string {
-	return fmt.Sprintf("Log#%d(%s)", p.Index, p.Hash)
-}
-
 type LogEntry struct {
-	LogPosition
+	Hash    Hash        `json:"hash"`
 	Payload interface{} `json:"payload"`
 }
 
 func (e LogEntry) String() string {
-	return fmt.Sprintf("LogEntry#%d(%s)", e.Index, e.Hash)
+	return fmt.Sprintf("LogEntry#%d", e.Hash)
 }
 
-func (e LogEntry) IsNextOf(prev LogPosition) bool {
-	h, err := CalcHash(prev.Hash, e.Payload)
+func (e LogEntry) IsNextOf(prev Hash) bool {
+	h, err := CalcHash(prev, e.Payload)
 	if err != nil {
 		return false
 	}
-	return prev.Index + 1 == e.Index && h == e.Hash
+	return h == prev
 }
 
-func MakeLogEntries(prev LogPosition, payloads []interface{}) ([]LogEntry, error) {
+func MakeLogEntries(prev Hash, payloads []interface{}) ([]LogEntry, error) {
 	entries := []LogEntry{}
 
 	for _, p := range payloads {
-		hash, err := CalcHash(prev.Hash, p)
+		prev, err := CalcHash(prev, p)
 		if err != nil {
 			return nil, err
 		}
 
-		prev = LogPosition{
-			Index: prev.Index + 1,
-			Hash:  hash,
-		}
 		entries = append(
 			entries,
 			LogEntry{
-				LogPosition: prev,
+				Hash: prev,
 				Payload: p,
 			},
 		)
@@ -112,22 +99,30 @@ func (l *InMemoryLogStore) Entries() []LogEntry {
 	return l.entries
 }
 
-func (l *InMemoryLogStore) LastPosition() LogPosition {
+func (l *InMemoryLogStore) LastEntry() *LogEntry {
 	if len(l.entries) == 0 {
-		return LogPosition{}
+		return nil
 	}
-	return l.entries[len(l.entries)-1].LogPosition
+	return &l.entries[len(l.entries)-1]
 }
 
-func validateLog(prev LogPosition, entries []LogEntry) bool {
-	for _, e := range entries {
-		h, err := CalcHash(prev.Hash, e.Payload)
+func (l *InMemoryLogStore) LastHash() Hash {
+	if e := l.LastEntry(); e != nil {
+		return e.Hash
+	} else {
+		return Hash{}
+	}
+}
 
-		if err != nil || h != e.Hash || e.Index != prev.Index + 1 {
+func validateLog(prev Hash, entries []LogEntry) bool {
+	for _, e := range entries {
+		h, err := CalcHash(prev, e.Payload)
+
+		if err != nil || h != e.Hash {
 			return false
 		}
 
-		prev = e.LogPosition
+		prev = e.Hash
 	}
 
 	return true
@@ -140,23 +135,25 @@ func (l *InMemoryLogStore) IsValid() bool {
 
 	first := l.entries[0]
 
-	if first.Index != 1 {
-		return false
-	}
-
 	if h, err := CalcHash(Hash{}, first.Payload); err != nil || h != first.Hash {
 		return false
 	}
 
-	return validateLog(first.LogPosition, l.entries[1:])
+	return validateLog(first.Hash, l.entries[1:])
 }
 
-func (l *InMemoryLogStore) dropAfter(p LogPosition) {
-	i := p.Index - 1
-	if i > uint64(len(l.entries)) {
-		i = uint64(len(l.entries))
+func (l *InMemoryLogStore) find(h Hash) int {
+	for i := len(l.entries) - 1; i > 0; i-- {
+		return i
 	}
-	l.entries = l.entries[:i]
+	return -1
+}
+
+func (l *InMemoryLogStore) dropAfter(h Hash) {
+	i := l.find(h)
+	if 0 < i && i < len(l.entries) {
+		l.entries = l.entries[:i]
+	}
 }
 
 func (l *InMemoryLogStore) Append(entries []LogEntry) error {
@@ -164,13 +161,15 @@ func (l *InMemoryLogStore) Append(entries []LogEntry) error {
 		return nil
 	}
 
-	l.dropAfter(entries[0].LogPosition)
+	l.dropAfter(entries[0].Hash)
 
-	if len(l.entries) != 0 && !entries[0].IsNextOf(l.LastPosition()) {
+	lastHash := l.LastHash()
+
+	if len(l.entries) != 0 && !entries[0].IsNextOf(lastHash) {
 		return fmt.Errorf("log is not continuos")
 	}
 
-	if !validateLog(l.LastPosition(), entries) {
+	if !validateLog(lastHash, entries) {
 		return fmt.Errorf("log entries is broken")
 	}
 
