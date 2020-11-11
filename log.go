@@ -64,14 +64,15 @@ func (e LogEntry) IsNextOf(prev Hash) bool {
 	if err != nil {
 		return false
 	}
-	return h == prev
+	return h == e.Hash
 }
 
 func MakeLogEntries(prev Hash, payloads []interface{}) ([]LogEntry, error) {
 	entries := []LogEntry{}
 
 	for _, p := range payloads {
-		prev, err := CalcHash(prev, p)
+		var err error
+		prev, err = CalcHash(prev, p)
 		if err != nil {
 			return nil, err
 		}
@@ -167,10 +168,12 @@ func (l *InMemoryLogStore) Since(h Hash) ([]LogEntry, error) {
 	return l.entries[i:], nil
 }
 
-func (l *InMemoryLogStore) dropAfter(h Hash) {
-	i := l.find(h)
-	if 0 < i && i < len(l.entries) {
-		l.entries = l.entries[:i]
+func (l *InMemoryLogStore) dropAfter(e LogEntry) {
+	for i := len(l.entries) - 1; i >= 0; i-- {
+		if e.IsNextOf(l.entries[i].Hash) {
+			l.entries = l.entries[:i + 1]
+			return
+		}
 	}
 }
 
@@ -179,7 +182,7 @@ func (l *InMemoryLogStore) Append(entries []LogEntry) error {
 		return nil
 	}
 
-	l.dropAfter(entries[0].Hash)
+	l.dropAfter(entries[0])
 
 	lastHash := l.Head()
 
