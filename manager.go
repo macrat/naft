@@ -52,6 +52,21 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 		return fmt.Errorf("invalid term")
 	}
 
+	index, err := m.Log.Index()
+	if err != nil {
+		return fmt.Errorf("internal server error")
+	} else if index > r.Index {
+		return fmt.Errorf("old index")
+	}
+
+	if index == r.Index {
+		if head, err := m.Log.Head(); err != nil {
+			return fmt.Errorf("internal server error")
+		} else if head != r.Head {
+			return fmt.Errorf("conflict head")
+		}
+	}
+
 	if m.term.ID != r.Term.ID {
 		log.Printf("keep-alive: change term to %s", r.Term)
 
@@ -167,6 +182,17 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 	promoted = make(chan bool)
 
+	index, err := m.Log.Index()
+	if err != nil {
+		promoted <- false
+		return
+	}
+	head, err := m.Log.Head()
+	if err != nil {
+		promoted <- false
+		return
+	}
+
 	go (func(promoted chan bool) {
 		defer close(promoted)
 
@@ -181,7 +207,9 @@ func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 			ID:     m.term.ID,
 		}
 		req := VoteRequestMessage{
-			Term: term,
+			Term:  term,
+			Index: index,
+			Head:  head,
 		}
 
 		log.Printf("candidate[%d]: start request vote", term.ID)

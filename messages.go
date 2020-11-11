@@ -6,7 +6,9 @@ import (
 )
 
 type VoteRequestMessage struct {
-	Term Term `json:"term"`
+	Term  Term `json:"term"`
+	Index int  `json:"index"`
+	Head  Hash `json:"head"`
 }
 
 func ReadVoteRequestMessage(r io.Reader) (v VoteRequestMessage, err error) {
