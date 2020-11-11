@@ -19,6 +19,7 @@ func ReadVoteRequestMessage(r io.Reader) (v VoteRequestMessage, err error) {
 type LogAppendMessage struct {
 	Term        Term        `json:"term"`
 	Entries     []LogEntry  `json:"entries"`
+	Head        Hash        `json:"head"`
 }
 
 func ReadLogAppendMessage(r io.Reader) (l LogAppendMessage, err error) {

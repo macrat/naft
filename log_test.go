@@ -103,13 +103,17 @@ func TestLogStore(t *testing.T) {
 		t.Errorf("empty log store is must be valid but not")
 	}
 
-	if entries := store.Entries(); entries == nil {
+	if entries, err := store.Entries(); err != nil {
+		t.Errorf("failed to get entries: %s", err)
+	} else if entries == nil {
 		t.Errorf("expected Entries() returns non nil value even if empty")
 	} else if len(entries) != 0 {
 		t.Errorf("store is empty but Entries() returns non empty array: %#v", entries)
 	}
 
-	if head := store.Head(); (head != Hash{}) {
+	if head, err := store.Head(); err != nil {
+		t.Errorf("failed to get head: %s", err)
+	} else if head != (Hash{}) {
 		t.Errorf("got unexpected head: %s", head)
 	}
 
@@ -137,13 +141,17 @@ func TestLogStore(t *testing.T) {
 		t.Errorf("must be valid but not")
 	}
 
-	if entries := store.Entries(); entries == nil {
+	if entries, err := store.Entries(); err != nil {
+		t.Errorf("failed to get entries: %s", err)
+	} else if entries == nil {
 		t.Errorf("expected Entries() returns non nil value if stored entries")
 	} else if len(entries) != 3 {
 		t.Errorf("unexpected length of Entries(): %#v", entries)
 	}
 
-	if head := store.Head(); head != MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61") {
+	if head, err := store.Head(); err != nil {
+		t.Errorf("failed to get head: %s", err)
+	} else if head != MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61") {
 		t.Errorf("got unexpected head: %s", head)
 	}
 
@@ -167,7 +175,7 @@ func TestLogStore(t *testing.T) {
 }
 
 func TestLogStore_IsValid_invalid(t *testing.T) {
-	first := InMemoryLogStore{
+	first := &InMemoryLogStore{
 		entries: []LogEntry{
 			{MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0"), "hogefuga"},
 			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
@@ -179,7 +187,7 @@ func TestLogStore_IsValid_invalid(t *testing.T) {
 		t.Errorf("must be invalid because broken hash")
 	}
 
-	last := InMemoryLogStore{
+	last := &InMemoryLogStore{
 		entries: []LogEntry{
 			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
 			{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
@@ -189,5 +197,50 @@ func TestLogStore_IsValid_invalid(t *testing.T) {
 
 	if last.IsValid() {
 		t.Errorf("must be invalid because broken hash")
+	}
+}
+
+func TestLogStore_SyncWith(t *testing.T) {
+	store := &InMemoryLogStore{
+		entries: []LogEntry{
+			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
+			{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
+		},
+	}
+	short := &InMemoryLogStore{
+		entries: []LogEntry{
+			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
+		},
+	}
+	long := &InMemoryLogStore{
+		entries: []LogEntry{
+			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
+			{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
+			{MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61"), "hogefuga"},
+		},
+	}
+
+	if err := store.SyncWith(short, MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf")); err != nil {
+		t.Errorf("failed to sync: %s", err)
+	} else if len(store.entries) != 1 {
+		t.Errorf("unexpected entries: %#v", store.entries)
+	} else if store.entries[len(store.entries)-1].String() != "LogEntry#bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf" {
+		t.Errorf("unexpected last entry: %#v", store.entries[len(store.entries)-1])
+	}
+
+	if err := store.SyncWith(long, MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61")); err != nil {
+		t.Errorf("failed to sync: %s", err)
+	} else if len(store.entries) != 3 {
+		t.Errorf("unexpected entries: %#v", store.entries)
+	} else if store.entries[len(store.entries)-1].String() != "LogEntry#482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61" {
+		t.Errorf("unexpected last entry: %#v", store.entries[len(store.entries)-1])
+	}
+
+	if err := store.SyncWith(long, MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61")); err != nil {
+		t.Errorf("failed to sync: %s", err)
+	} else if len(store.entries) != 3 {
+		t.Errorf("unexpected entries: %#v", store.entries)
+	} else if store.entries[len(store.entries)-1].String() != "LogEntry#482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61" {
+		t.Errorf("unexpected last entry: %#v", store.entries[len(store.entries)-1])
 	}
 }

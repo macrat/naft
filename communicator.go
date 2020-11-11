@@ -55,6 +55,7 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 	c.mux.HandleFunc("/log", c.getLog)
 	c.mux.HandleFunc("/log/{hash:[0-9a-z]{64}}", c.getLogEntry)
 	c.mux.HandleFunc("/log/head", c.getHead)
+	c.mux.HandleFunc("/log/index", c.getIndex)
 
 	for _, path := range []string{"/status", "/hosts", "/log", "/log/head"} {
 		c.mux.Handle("/leader" + path, RedirectLeaderHandler{manager, path})
@@ -71,7 +72,7 @@ func (h *HTTPCommunicator) onLogAppend(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.manager.OnLogAppend(l)
+	err = h.manager.OnLogAppend(h, l)
 
 	if err != nil {
 		log.Printf("log-append: %s: %s", l.Term, err)
@@ -116,8 +117,12 @@ func (h *HTTPCommunicator) getHosts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getLog(w http.ResponseWriter, r *http.Request) {
-	enc := json.NewEncoder(w)
-	enc.Encode(h.Log.Entries())
+	if es, err := h.Log.Entries(); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	} else {
+		enc := json.NewEncoder(w)
+		enc.Encode(es)
+	}
 }
 
 func (h *HTTPCommunicator) getLogSince(w http.ResponseWriter, r *http.Request) {
@@ -164,8 +169,21 @@ func (h *HTTPCommunicator) getLogEntry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getHead(w http.ResponseWriter, r *http.Request) {
-	enc := json.NewEncoder(w)
-	enc.Encode(h.Log.Head())
+	if hash, err := h.Log.Head(); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	} else {
+		enc := json.NewEncoder(w)
+		enc.Encode(hash)
+	}
+}
+
+func (h *HTTPCommunicator) getIndex(w http.ResponseWriter, r *http.Request) {
+	if index, err := h.Log.Index(); err != nil {
+		http.Error(w, "internal server error", http.StatusInternalServerError)
+	} else {
+		enc := json.NewEncoder(w)
+		enc.Encode(index)
+	}
 }
 
 func (h *HTTPCommunicator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
@@ -231,12 +249,27 @@ func (h *HTTPCommunicator) SendRequestVote(target *Host, r VoteRequestMessage) e
 	return h.send(target, "/request-vote", r)
 }
 
+func (h *HTTPCommunicator) Head() (hash Hash, err error) {
+	err = h.getByLeader(fmt.Sprintf("/log/head"), &hash)
+	return
+}
+
+func (h *HTTPCommunicator) Index() (index int, err error) {
+	err = h.getByLeader(fmt.Sprintf("/log/index"), &index)
+	return
+}
+
 func (h *HTTPCommunicator) Get(hash Hash) (e LogEntry, err error) {
 	err = h.getByLeader(fmt.Sprintf("/log/%s", hash), &e)
 	return
 }
 
 func (h *HTTPCommunicator) Since(hash Hash) (es []LogEntry, err error) {
-	err = h.getByLeader(fmt.Sprintf("/log/%s:", hash), &es)
+	err = h.getByLeader(fmt.Sprintf("/log?from=%s", hash), &es)
+	return
+}
+
+func (h *HTTPCommunicator) Entries() (es []LogEntry, err error) {
+	err = h.getByLeader(fmt.Sprintf("/log"), &es)
 	return
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"log"
 )
 
 type Hash [sha256.Size]byte
@@ -93,11 +94,11 @@ type InMemoryLogStore struct {
 	entries []LogEntry `json:"entries"`
 }
 
-func (l *InMemoryLogStore) Entries() []LogEntry {
+func (l *InMemoryLogStore) Entries() ([]LogEntry, error) {
 	if l.entries == nil {
-		return []LogEntry{}
+		return []LogEntry{}, nil
 	}
-	return l.entries
+	return l.entries, nil
 }
 
 func (l *InMemoryLogStore) lastEntry() *LogEntry {
@@ -107,12 +108,16 @@ func (l *InMemoryLogStore) lastEntry() *LogEntry {
 	return &l.entries[len(l.entries)-1]
 }
 
-func (l *InMemoryLogStore) Head() Hash {
+func (l *InMemoryLogStore) Head() (Hash, error) {
 	if e := l.lastEntry(); e != nil {
-		return e.Hash
+		return e.Hash, nil
 	} else {
-		return Hash{}
+		return Hash{}, nil
 	}
+}
+
+func (l *InMemoryLogStore) Index() (int, error) {
+	return len(l.entries), nil
 }
 
 func validateLog(prev Hash, entries []LogEntry) bool {
@@ -184,7 +189,7 @@ func (l *InMemoryLogStore) Append(entries []LogEntry) error {
 
 	l.dropAfter(entries[0])
 
-	lastHash := l.Head()
+	lastHash, _ := l.Head()
 
 	if len(l.entries) != 0 && !entries[0].IsNextOf(lastHash) {
 		return fmt.Errorf("log is not continuos")
@@ -195,6 +200,34 @@ func (l *InMemoryLogStore) Append(entries []LogEntry) error {
 	}
 
 	l.entries = append(l.entries, entries...)
+
+	return nil
+}
+
+func (l *InMemoryLogStore) SyncWith(r LogReader, head Hash) error {
+	if i := l.find(head); i >= 0 {
+		if i < len(l.entries) - 1 {
+			log.Printf("log-store: sync trim from %d for %s", i, head)
+			l.entries = l.entries[:i+1]
+		}
+		return nil
+	}
+
+	for i := len(l.entries) - 1; i >= 0; i-- {
+		if entries, err := r.Since(l.entries[i].Hash); err == nil {
+			if err := l.Append(entries); err == nil {
+				log.Printf("log-store: sync download from %d for %s", i, head)
+				return nil
+			}
+		}
+	}
+
+	log.Printf("log-store: sync download all for %s", head)
+	if entries, err := r.Entries(); err != nil {
+		return err
+	} else {
+		l.entries = entries
+	}
 
 	return nil
 }

@@ -62,7 +62,7 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 	return nil
 }
 
-func (m *SimpleManager) OnLogAppend(l LogAppendMessage) error {
+func (m *SimpleManager) OnLogAppend(c Communicator, l LogAppendMessage) error {
 	if m.term.ID > l.Term.ID || (m.term.ID == l.Term.ID && (!m.term.Equals(l.Term) || m.term.Leader == nil)) {
 		return fmt.Errorf("invalid term")
 	}
@@ -74,11 +74,17 @@ func (m *SimpleManager) OnLogAppend(l LogAppendMessage) error {
 	m.term = l.Term
 	m.leaderExpire = time.Now().Add(m.LeaderTTL)
 
-	if err := m.Log.Append(l.Entries); err != nil {
-		return err
+	if len(l.Entries) > 0 {
+		if head, err := m.Log.Head(); err != nil {
+			return err
+		} else if l.Entries[0].IsNextOf(head) {
+			if err := m.Log.Append(l.Entries); err != nil {
+				return err
+			}
+		}
 	}
 
-	return nil
+	return m.Log.SyncWith(c, l.Head)
 }
 
 func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error {
@@ -86,7 +92,12 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error 
 		return nil
 	}
 
-	entries, err := MakeLogEntries(m.Log.Head(), payloads)
+	hash, err := m.Log.Head()
+	if err != nil {
+		return err
+	}
+
+	entries, err := MakeLogEntries(hash, payloads)
 	if err != nil {
 		return err
 	}
@@ -101,6 +112,15 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error 
 func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan error {
 	errch := make(chan error)
 
+	head, err := m.Log.Head()
+	if err != nil {
+		errch <- err
+		return errch
+	}
+	if len(entries) > 0 {
+		head = entries[len(entries)-1].Hash
+	}
+
 	go (func(errch chan error) {
 		defer close(errch)
 
@@ -110,6 +130,7 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 		msg := LogAppendMessage{
 			Term: m.term,
 			Entries: entries,
+			Head: head,
 		}
 
 		for _, h := range m.hosts {
