@@ -143,9 +143,9 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 		defer close(ch)
 
 		msg := LogAppendMessage{
-			Term: m.term,
+			Term:    m.term,
 			Entries: entries,
-			Head: head,
+			Head:    head,
 		}
 
 		for _, h := range m.hosts {

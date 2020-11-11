@@ -81,7 +81,7 @@ func MakeLogEntries(prev Hash, payloads []interface{}) ([]LogEntry, error) {
 		entries = append(
 			entries,
 			LogEntry{
-				Hash: prev,
+				Hash:    prev,
 				Payload: p,
 			},
 		)
@@ -176,7 +176,7 @@ func (l *InMemoryLogStore) Since(h Hash) ([]LogEntry, error) {
 func (l *InMemoryLogStore) dropAfter(e LogEntry) {
 	for i := len(l.entries) - 1; i >= 0; i-- {
 		if e.IsNextOf(l.entries[i].Hash) {
-			l.entries = l.entries[:i + 1]
+			l.entries = l.entries[:i+1]
 			return
 		}
 	}
@@ -206,7 +206,7 @@ func (l *InMemoryLogStore) Append(entries []LogEntry) error {
 
 func (l *InMemoryLogStore) SyncWith(r LogReader, head Hash) error {
 	if i := l.find(head); i >= 0 {
-		if i < len(l.entries) - 1 {
+		if i < len(l.entries)-1 {
 			log.Printf("log-store: sync trim from %d for %s", i, head)
 			l.entries = l.entries[:i+1]
 		}

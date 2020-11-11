@@ -58,7 +58,7 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 	c.mux.HandleFunc("/log/index", c.getIndex)
 
 	for _, path := range []string{"/status", "/hosts", "/log", "/log/head"} {
-		c.mux.Handle("/leader" + path, RedirectLeaderHandler{manager, path})
+		c.mux.Handle("/leader"+path, RedirectLeaderHandler{manager, path})
 	}
 
 	return &c

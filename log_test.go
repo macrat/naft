@@ -40,7 +40,7 @@ func TestCalcHash(t *testing.T) {
 		t.Errorf("got unexpected result: %s", second)
 	}
 
-	structData := struct{
+	structData := struct {
 		Number int
 		String string
 	}{
