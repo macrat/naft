@@ -33,6 +33,7 @@ type LogStore interface {
 	LogReader
 
 	IsValid() bool
+	SetHead(h Hash) error
 	Append(es []LogEntry) error
 	SyncWith(r LogReader, head Hash) error
 }

@@ -200,6 +200,53 @@ func TestLogStore_IsValid_invalid(t *testing.T) {
 	}
 }
 
+func TestLogStore_SetHead(t *testing.T) {
+	last := MustParseHash("4444444444444444444444444444444444444444444444444444444444444444")
+	next := MustParseHash("2222222222222222222222222222222222222222222222222222222222222222")
+	nosuch := MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0")
+
+	store := &InMemoryLogStore{
+		entries: []LogEntry{
+			{MustParseHash("1111111111111111111111111111111111111111111111111111111111111111"), "1st"},
+			{next, "2nd"},
+			{MustParseHash("3333333333333333333333333333333333333333333333333333333333333333"), "3rd"},
+			{last, "4th"},
+		},
+	}
+
+	if h, err := store.Head(); err != nil {
+		t.Errorf("failed to get head: %s", err)
+	} else if h != last {
+		t.Errorf("unexpected head: %s", h)
+	}
+
+	if err := store.SetHead(last); err != nil {
+		t.Errorf("failed to set head: %s", err)
+	}
+
+	if h, err := store.Head(); err != nil {
+		t.Errorf("failed to get head: %s", err)
+	} else if h != last {
+		t.Errorf("unexpected head: %s", h)
+	}
+
+	if err := store.SetHead(next); err != nil {
+		t.Errorf("failed to set head: %s", err)
+	}
+
+	if h, err := store.Head(); err != nil {
+		t.Errorf("failed to get head: %s", err)
+	} else if h != next {
+		t.Errorf("unexpected head: %s", h)
+	}
+
+	if err := store.SetHead(nosuch); err == nil {
+		t.Errorf("expected error but not got")
+	} else if err.Error() != "no such entry: 0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0" {
+		t.Errorf("unexpected error: %s", err)
+	}
+}
+
 func TestLogStore_SyncWith(t *testing.T) {
 	store := &InMemoryLogStore{
 		entries: []LogEntry{

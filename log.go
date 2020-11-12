@@ -224,6 +224,19 @@ func (l *InMemoryLogStore) Append(entries []LogEntry) error {
 	return l.appendWithoutLock(entries)
 }
 
+func (l *InMemoryLogStore) SetHead(h Hash) error {
+	l.Lock()
+	defer l.Unlock()
+
+	for i := len(l.entries) - 1; i >= 0; i-- {
+		if l.entries[i].Hash == h {
+			l.entries = l.entries[:i+1]
+			return nil
+		}
+	}
+	return fmt.Errorf("no such entry: %s", h)
+}
+
 func (l *InMemoryLogStore) SyncWith(r LogReader, head Hash) error {
 	l.Lock()
 	defer l.Unlock()
