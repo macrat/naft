@@ -64,7 +64,7 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 	m.Lock()
 	defer m.Unlock()
 
-	if m.term.ID > r.Term.ID || (m.term.ID == r.Term.ID && !r.Term.Leader.Equals(m.self)) {
+	if m.term.ID > r.Term.ID || m.term.ID == r.Term.ID {
 		return fmt.Errorf("invalid term")
 	}
 
@@ -83,13 +83,6 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 		}
 	}
 
-	if m.term.ID != r.Term.ID {
-		log.Printf("keep-alive: change term to %s", r.Term)
-
-		m.term = r.Term
-		m.leaderExpire = time.Now().Add(m.LeaderTTL)
-	}
-
 	return nil
 }
 
@@ -97,7 +90,7 @@ func (m *SimpleManager) OnLogAppend(c Communicator, l LogAppendMessage) error {
 	m.Lock()
 	defer m.Unlock()
 
-	if m.term.ID > l.Term.ID || (m.term.ID == l.Term.ID && (!m.term.Equals(l.Term) || m.term.Leader == nil)) {
+	if m.term.ID > l.Term.ID || (m.term.ID == l.Term.ID && !m.term.Leader.Equals(l.Term.Leader)) {
 		return fmt.Errorf("invalid term")
 	}
 
@@ -193,18 +186,15 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 
 	m.Lock()
 	m.term.Leader = nil
-	m.term.ID++
-	id := m.term.ID
-	m.Unlock()
-
 	msg := VoteRequestMessage{
 		Term:  Term{
 			Leader: m.self,
-			ID:     id,
+			ID: m.term.ID + 1,
 		},
 		Index: index,
 		Head:  head,
 	}
+	m.Unlock()
 
 	err = SendRequestVoteToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 + len(m.hosts)%2 - 1, msg)
 
@@ -218,10 +208,11 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 	} else {
 		log.Printf("candidate[%d]: promoted to leader", msg.Term.ID)
 
-		// DEBUG BEGIN
 		m.Lock()
-		m.term.Leader = m.self
+		m.term = msg.Term
 		m.Unlock()
+
+		// DEBUG BEGIN
 		if err := m.AppendLog(c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, msg.Term.ID)}); err != nil {
 			log.Printf("debug: failed to append log: %s", err)
 		}
