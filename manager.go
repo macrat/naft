@@ -166,7 +166,7 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) error 
 		Head:    head,
 	}
 
-	return SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 - 1, msg)
+	return SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 + len(m.hosts)%2 - 1, msg)
 }
 
 func getIndexAndHead(l LogStore) (index int, head Hash, err error) {
@@ -206,7 +206,7 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 		Head:  head,
 	}
 
-	err = SendRequestVoteToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 - 1, msg)
+	err = SendRequestVoteToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 + len(m.hosts)%2 - 1, msg)
 
 	if m.term.Leader != nil {
 		log.Printf("candidate[%d]: cancelled", msg.Term.ID)

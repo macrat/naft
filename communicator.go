@@ -274,7 +274,7 @@ func (h *HTTPCommunicator) Entries() (es []LogEntry, err error) {
 	return
 }
 
-func OperateToAllHosts(m MessageSender, targets []*Host, threshold int, fun func(m MessageSender, target *Host, agree chan bool)) error {
+func OperateToAllHosts(m MessageSender, targets []*Host, needAgrees int, fun func(m MessageSender, target *Host, agree chan bool)) error {
 	if len(targets) == 0 {
 		return nil
 	}
@@ -296,27 +296,27 @@ func OperateToAllHosts(m MessageSender, targets []*Host, threshold int, fun func
 			if <-ch {
 				agreed++
 			}
-			if !closed && agreed > threshold {
+			if !closed && agreed >= needAgrees {
 				closed = true
 				errch <- nil
 			}
 		}
 		if !closed {
-			errch <- fmt.Errorf("need least %d hosts agree but only %d hosts agreed", threshold + 1, agreed)
+			errch <- fmt.Errorf("need least %d hosts agree but only %d hosts agreed", needAgrees, agreed)
 		}
 	})(errch)
 
 	return <-errch
 }
 
-func SendLogAppendToAllHosts(m MessageSender, targets []*Host, threshold int, msg LogAppendMessage) error {
-	return OperateToAllHosts(m, targets, threshold, func(m MessageSender, h *Host, agree chan bool) {
+func SendLogAppendToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg LogAppendMessage) error {
+	return OperateToAllHosts(m, targets, needAgrees, func(m MessageSender, h *Host, agree chan bool) {
 		agree <- m.SendLogAppend(h, msg) == nil
 	})
 }
 
-func SendRequestVoteToAllHosts(m MessageSender, targets []*Host, threshold int, msg VoteRequestMessage) error {
-	return OperateToAllHosts(m, targets, threshold, func(m MessageSender, h *Host, agree chan bool) {
+func SendRequestVoteToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg VoteRequestMessage) error {
+	return OperateToAllHosts(m, targets, needAgrees, func(m MessageSender, h *Host, agree chan bool) {
 		agree <- m.SendRequestVote(h, msg) == nil
 	})
 }
