@@ -64,7 +64,7 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 	m.Lock()
 	defer m.Unlock()
 
-	if m.term.ID > r.Term.ID || m.term.ID == r.Term.ID {
+	if m.term.ID >= r.Term.ID {
 		return fmt.Errorf("invalid term")
 	}
 
@@ -82,6 +82,11 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 			return fmt.Errorf("conflict head")
 		}
 	}
+
+	log.Printf("request-vote: change term to %s", r.Term)
+
+	m.term = r.Term
+	m.leaderExpire = time.Now().Add(m.LeaderTTL)
 
 	return nil
 }
