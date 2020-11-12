@@ -149,13 +149,7 @@ func (l *InMemoryLogStore) IsValid() bool {
 		return true
 	}
 
-	first := l.entries[0]
-
-	if h, err := CalcHash(Hash{}, first.Payload); err != nil || h != first.Hash {
-		return false
-	}
-
-	return validateLog(first.Hash, l.entries[1:])
+	return validateLog(Hash{}, l.entries)
 }
 
 func (l *InMemoryLogStore) find(h Hash) int {
