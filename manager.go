@@ -165,7 +165,7 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) error 
 		Head:    head,
 	}
 
-	err = SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 + len(m.hosts)%2 - 1, msg)
+	err = SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2+len(m.hosts)%2-1, msg)
 	if err != nil && len(entries) > 0 {
 		log.Printf("leader[%d]: failed to replicate log: %s", m.term.ID, err)
 
@@ -191,7 +191,7 @@ func getIndexAndHead(l LogStore) (index int, head Hash, err error) {
 }
 
 func (m *SimpleManager) sendRequestVote(c Communicator) error {
-	log.Printf("candidate[%d]: start request vote", m.term.ID + 1)
+	log.Printf("candidate[%d]: start request vote", m.term.ID+1)
 
 	m.Lock()
 	index, head, err := getIndexAndHead(m.Log)
@@ -203,16 +203,16 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 	m.Lock()
 	m.term.Leader = nil
 	msg := VoteRequestMessage{
-		Term:  Term{
+		Term: Term{
 			Leader: m.self,
-			ID: m.term.ID + 1,
+			ID:     m.term.ID + 1,
 		},
 		Index: index,
 		Head:  head,
 	}
 	m.Unlock()
 
-	err = SendRequestVoteToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 + len(m.hosts)%2 - 1, msg)
+	err = SendRequestVoteToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2+len(m.hosts)%2-1, msg)
 
 	if m.term.Leader != nil {
 		log.Printf("candidate[%d]: cancelled", msg.Term.ID)
