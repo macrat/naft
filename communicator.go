@@ -274,7 +274,7 @@ func (h *HTTPCommunicator) Entries() (es []LogEntry, err error) {
 	return
 }
 
-func OperateToAllHosts(c Communicator, targets []*Host, threshold int, fun func(c Communicator, target *Host, success chan bool)) error {
+func OperateToAllHosts(m MessageSender, targets []*Host, threshold int, fun func(m MessageSender, target *Host, agree chan bool)) error {
 	if len(targets) == 0 {
 		return nil
 	}
@@ -287,38 +287,36 @@ func OperateToAllHosts(c Communicator, targets []*Host, threshold int, fun func(
 		defer close(ch)
 
 		for _, h := range targets {
-			go fun(c, h, ch)
+			go fun(m, h, ch)
 		}
 
 		closed := false
-		success := 0
+		agreed := 0
 		for range targets {
 			if <-ch {
-				success++
+				agreed++
 			}
-			if !closed && success > threshold {
+			if !closed && agreed > threshold {
 				closed = true
 				errch <- nil
 			}
 		}
 		if !closed {
-			errch <- fmt.Errorf("need least %d hosts agree but only %d hosts agreed", threshold + 1, success)
+			errch <- fmt.Errorf("need least %d hosts agree but only %d hosts agreed", threshold + 1, agreed)
 		}
 	})(errch)
 
 	return <-errch
 }
 
-func SendLogAppendToAllHosts(c Communicator, targets []*Host, threshold int, msg LogAppendMessage) error {
-	return OperateToAllHosts(c, targets, threshold, func(c Communicator, h *Host, ch chan bool) {
-		err := c.SendLogAppend(h, msg)
-		ch <- err == nil
+func SendLogAppendToAllHosts(m MessageSender, targets []*Host, threshold int, msg LogAppendMessage) error {
+	return OperateToAllHosts(m, targets, threshold, func(m MessageSender, h *Host, agree chan bool) {
+		agree <- m.SendLogAppend(h, msg) == nil
 	})
 }
 
-func SendRequestVoteToAllHosts(c Communicator, targets []*Host, threshold int, msg VoteRequestMessage) error {
-	return OperateToAllHosts(c, targets, threshold, func(c Communicator, h *Host, ch chan bool) {
-		err := c.SendRequestVote(h, msg)
-		ch <- err == nil
+func SendRequestVoteToAllHosts(m MessageSender, targets []*Host, threshold int, msg VoteRequestMessage) error {
+	return OperateToAllHosts(m, targets, threshold, func(m MessageSender, h *Host, agree chan bool) {
+		agree <- m.SendRequestVote(h, msg) == nil
 	})
 }

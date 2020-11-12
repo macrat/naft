@@ -19,11 +19,14 @@ type LogReader interface {
 	Entries() ([]LogEntry, error)
 }
 
-type Communicator interface {
-	LogReader
-
+type MessageSender interface {
 	SendLogAppend(target *Host, l LogAppendMessage) error
 	SendRequestVote(target *Host, r VoteRequestMessage) error
+}
+
+type Communicator interface {
+	LogReader
+	MessageSender
 }
 
 type LogStore interface {
