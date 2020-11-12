@@ -199,7 +199,7 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 	return errch
 }
 
-func  getIndexAndHead(l LogStore) (index int, head Hash, err error) {
+func getIndexAndHead(l LogStore) (index int, head Hash, err error) {
 	index, err = l.Index()
 	if err != nil {
 		return
