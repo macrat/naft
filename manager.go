@@ -4,10 +4,13 @@ import (
 	"fmt"
 	"log"
 	"math/rand"
+	"sync"
 	"time"
 )
 
 type SimpleManager struct {
+	sync.Mutex
+
 	self              *Host
 	leaderExpire      time.Time
 	term              Term
@@ -48,6 +51,9 @@ func (m *SimpleManager) Hosts() []*Host {
 }
 
 func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) error {
+	m.Lock()
+	defer m.Unlock()
+
 	if m.term.ID > r.Term.ID || (m.term.ID == r.Term.ID && !r.Term.Leader.Equals(m.self)) {
 		return fmt.Errorf("invalid term")
 	}
@@ -78,6 +84,9 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 }
 
 func (m *SimpleManager) OnLogAppend(c Communicator, l LogAppendMessage) error {
+	m.Lock()
+	defer m.Unlock()
+
 	if m.term.ID > l.Term.ID || (m.term.ID == l.Term.ID && (!m.term.Equals(l.Term) || m.term.Leader == nil)) {
 		return fmt.Errorf("invalid term")
 	}
@@ -103,6 +112,9 @@ func (m *SimpleManager) OnLogAppend(c Communicator, l LogAppendMessage) error {
 }
 
 func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error {
+	m.Lock()
+	defer m.Unlock()
+
 	if len(payloads) == 0 {
 		return nil
 	}
@@ -139,8 +151,10 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 	go (func(errch chan error) {
 		defer close(errch)
 
-		ch := make(chan bool)
-		defer close(ch)
+		if err := m.Log.Append(entries); err != nil {
+			errch <- err
+			return
+		}
 
 		msg := LogAppendMessage{
 			Term:    m.term,
@@ -148,7 +162,13 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 			Head:    head,
 		}
 
+		ch := make(chan bool)
+		defer close(ch)
+
 		for _, h := range m.hosts {
+			if h == m.self {
+				continue
+			}
 			go (func(h *Host, ch chan bool) {
 				if err := c.SendLogAppend(h, msg); err != nil {
 					log.Printf("leader[%d]: failed to send log-append: %s", m.term.ID, err)
@@ -160,7 +180,7 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 		}
 
 		closed := false
-		success := 0
+		success := 1
 		for range m.hosts {
 			if <-ch {
 				success++
@@ -179,15 +199,24 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan e
 	return errch
 }
 
+func  getIndexAndHead(l LogStore) (index int, head Hash, err error) {
+	index, err = l.Index()
+	if err != nil {
+		return
+	}
+	head, err = l.Head()
+	if err != nil {
+		return
+	}
+	return
+}
+
 func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 	promoted = make(chan bool)
 
-	index, err := m.Log.Index()
-	if err != nil {
-		promoted <- false
-		return
-	}
-	head, err := m.Log.Head()
+	m.Lock()
+	index, head, err := getIndexAndHead(m.Log)
+	m.Unlock()
 	if err != nil {
 		promoted <- false
 		return
@@ -199,12 +228,17 @@ func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 		ch := make(chan bool)
 		defer close(ch)
 
+		m.Lock()
+
 		m.term.Leader = nil
 		m.term.ID++
+		id := m.term.ID
+
+		m.Unlock()
 
 		term := Term{
 			Leader: m.self,
-			ID:     m.term.ID,
+			ID:     id,
 		}
 		req := VoteRequestMessage{
 			Term:  term,
@@ -232,11 +266,16 @@ func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 				votes++
 			}
 
-			if votes > len(m.hosts)/2 && !closed {
+			if m.term.Leader != nil {
+				promoted <- false
+				closed = true
+			} else if votes > len(m.hosts)/2 && !closed {
 				log.Printf("candidate[%d]: promoted to leader", term.ID)
 
 				// DEBUG BEGIN
+				m.Lock()
 				m.term.Leader = m.self
+				m.Unlock()
 				if err := m.AppendLog(c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, term.ID)}); err != nil {
 					log.Printf("debug: failed to append log: %s", err)
 				}
@@ -270,7 +309,9 @@ func (m *SimpleManager) waitForLeaderExpire() {
 func (m *SimpleManager) Manage(c Communicator) {
 	for {
 		if m.IsLeader() {
+			m.Lock()
 			m.sendLogAppend(c, nil)
+			m.Unlock()
 			time.Sleep(m.KeepAliveInterval)
 			continue
 		}
