@@ -146,10 +146,11 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error 
 }
 
 func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) error {
-	head, err := m.Log.Head()
+	oldHead, err := m.Log.Head()
 	if err != nil {
 		return err
 	}
+	head := oldHead
 	if len(entries) > 0 {
 		head = entries[len(entries)-1].Hash
 
@@ -164,7 +165,17 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) error 
 		Head:    head,
 	}
 
-	return SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 + len(m.hosts)%2 - 1, msg)
+	err = SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 + len(m.hosts)%2 - 1, msg)
+	if err != nil && len(entries) > 0 {
+		log.Printf("leader[%d]: failed to replicate log: %s", m.term.ID, err)
+
+		if e := m.Log.SetHead(oldHead); e != nil {
+			log.Printf("leader[%d]: failed to rollback log: %s", m.term.ID, e)
+		} else {
+			m.sendLogAppend(c, nil)
+		}
+	}
+	return err
 }
 
 func getIndexAndHead(l LogStore) (index int, head Hash, err error) {
