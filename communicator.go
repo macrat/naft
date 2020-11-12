@@ -273,3 +273,40 @@ func (h *HTTPCommunicator) Entries() (es []LogEntry, err error) {
 	err = h.getByLeader(fmt.Sprintf("/log"), &es)
 	return
 }
+
+func SendLogAppendAllHosts(c Communicator, targets []*Host, threshold int, msg LogAppendMessage) error {
+	errch := make(chan error)
+	defer close(errch)
+
+	go (func(errch chan error) {
+		ch := make(chan bool)
+		defer close(ch)
+
+		for _, h := range targets {
+			go (func(h *Host, ch chan bool) {
+				if err := c.SendLogAppend(h, msg); err != nil {
+					ch <- false
+				} else {
+					ch <- true
+				}
+			})(h, ch)
+		}
+
+		closed := false
+		success := 0
+		for range targets {
+			if <-ch {
+				success++
+			}
+			if success > threshold && !closed {
+				closed = true
+				errch <- nil
+			}
+		}
+		if !closed {
+			errch <- fmt.Errorf("failed to broadcast log entries")
+		}
+	})(errch)
+
+	return <-errch
+}

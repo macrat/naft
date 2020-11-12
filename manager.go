@@ -50,6 +50,16 @@ func (m *SimpleManager) Hosts() []*Host {
 	return m.hosts
 }
 
+func (m *SimpleManager) hostsWithoutSelf() []*Host {
+	result := make([]*Host, 0, len(m.hosts)-1)
+	for _, h := range m.hosts {
+		if h != m.self {
+			result = append(result, h)
+		}
+	}
+	return result
+}
+
 func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) error {
 	m.Lock()
 	defer m.Unlock()
@@ -129,74 +139,34 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error 
 		return err
 	}
 
-	if err := <-m.sendLogAppend(c, entries); err != nil {
+	if err := m.sendLogAppend(c, entries); err != nil {
+		log.Printf("leader[%d]: failed to broadcast log entries", m.term.ID)
 		return err
 	}
 
 	return nil
 }
 
-func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) chan error {
-	errch := make(chan error)
-
+func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) error {
 	head, err := m.Log.Head()
 	if err != nil {
-		errch <- err
-		return errch
+		return err
 	}
 	if len(entries) > 0 {
 		head = entries[len(entries)-1].Hash
-	}
-
-	go (func(errch chan error) {
-		defer close(errch)
 
 		if err := m.Log.Append(entries); err != nil {
-			errch <- err
-			return
+			return err
 		}
+	}
 
-		msg := LogAppendMessage{
-			Term:    m.term,
-			Entries: entries,
-			Head:    head,
-		}
+	msg := LogAppendMessage{
+		Term:    m.term,
+		Entries: entries,
+		Head:    head,
+	}
 
-		ch := make(chan bool)
-		defer close(ch)
-
-		for _, h := range m.hosts {
-			if h == m.self {
-				continue
-			}
-			go (func(h *Host, ch chan bool) {
-				if err := c.SendLogAppend(h, msg); err != nil {
-					log.Printf("leader[%d]: failed to send log-append: %s", m.term.ID, err)
-					ch <- false
-				} else {
-					ch <- true
-				}
-			})(h, ch)
-		}
-
-		closed := false
-		success := 1
-		for range m.hosts {
-			if <-ch {
-				success++
-			}
-			if success > len(m.hosts)/2 && !closed {
-				closed = true
-				errch <- nil
-			}
-		}
-		if !closed {
-			log.Printf("leader[%d]: failed to broadcast log entries", m.term.ID)
-			errch <- fmt.Errorf("failed to broadcast log entries")
-		}
-	})(errch)
-
-	return errch
+	return SendLogAppendAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 - 1, msg)
 }
 
 func getIndexAndHead(l LogStore) (index int, head Hash, err error) {
