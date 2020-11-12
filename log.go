@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"sync"
 )
 
 type Hash [sha256.Size]byte
@@ -91,6 +92,8 @@ func MakeLogEntries(prev Hash, payloads []interface{}) ([]LogEntry, error) {
 }
 
 type InMemoryLogStore struct {
+	sync.RWMutex
+
 	entries []LogEntry `json:"entries"`
 }
 
@@ -102,10 +105,14 @@ func (l *InMemoryLogStore) Entries() ([]LogEntry, error) {
 }
 
 func (l *InMemoryLogStore) lastEntry() *LogEntry {
+	l.RLock()
+	defer l.RUnlock()
+
 	if len(l.entries) == 0 {
 		return nil
 	}
-	return &l.entries[len(l.entries)-1]
+	result := l.entries[len(l.entries)-1]
+	return &result
 }
 
 func (l *InMemoryLogStore) Head() (Hash, error) {
@@ -135,6 +142,9 @@ func validateLog(prev Hash, entries []LogEntry) bool {
 }
 
 func (l *InMemoryLogStore) IsValid() bool {
+	l.RLock()
+	defer l.RUnlock()
+
 	if len(l.entries) == 0 {
 		return true
 	}
@@ -158,6 +168,9 @@ func (l *InMemoryLogStore) find(h Hash) int {
 }
 
 func (l *InMemoryLogStore) Get(h Hash) (LogEntry, error) {
+	l.RLock()
+	defer l.RUnlock()
+
 	i := l.find(h)
 	if i < 0 {
 		return LogEntry{}, fmt.Errorf("no such log: #%s", h)
@@ -166,6 +179,9 @@ func (l *InMemoryLogStore) Get(h Hash) (LogEntry, error) {
 }
 
 func (l *InMemoryLogStore) Since(h Hash) ([]LogEntry, error) {
+	l.RLock()
+	defer l.RUnlock()
+
 	i := l.find(h)
 	if i < 0 {
 		return nil, fmt.Errorf("no such log: #%s", h)
@@ -182,17 +198,20 @@ func (l *InMemoryLogStore) dropAfter(e LogEntry) {
 	}
 }
 
-func (l *InMemoryLogStore) Append(entries []LogEntry) error {
+func (l *InMemoryLogStore) appendWithoutLock(entries []LogEntry) error {
 	if len(entries) == 0 {
 		return nil
 	}
 
 	l.dropAfter(entries[0])
 
-	lastHash, _ := l.Head()
+	lastHash := Hash{}
+	if len(l.entries) > 0 {
+		lastHash = l.entries[len(l.entries)-1].Hash
 
-	if len(l.entries) != 0 && !entries[0].IsNextOf(lastHash) {
-		return fmt.Errorf("log is not continuos")
+		if !entries[0].IsNextOf(lastHash) {
+			return fmt.Errorf("log is not continuos")
+		}
 	}
 
 	if !validateLog(lastHash, entries) {
@@ -204,7 +223,17 @@ func (l *InMemoryLogStore) Append(entries []LogEntry) error {
 	return nil
 }
 
+func (l *InMemoryLogStore) Append(entries []LogEntry) error {
+	l.Lock()
+	defer l.Unlock()
+
+	return l.appendWithoutLock(entries)
+}
+
 func (l *InMemoryLogStore) SyncWith(r LogReader, head Hash) error {
+	l.Lock()
+	defer l.Unlock()
+
 	if i := l.find(head); i >= 0 {
 		if i < len(l.entries)-1 {
 			log.Printf("log-store: sync trim from %d for %s", i, head)
@@ -215,7 +244,7 @@ func (l *InMemoryLogStore) SyncWith(r LogReader, head Hash) error {
 
 	for i := len(l.entries) - 1; i >= 0; i-- {
 		if entries, err := r.Since(l.entries[i].Hash); err == nil {
-			if err := l.Append(entries); err == nil {
+			if err := l.appendWithoutLock(entries); err == nil {
 				log.Printf("log-store: sync download from %d for %s", i, head)
 				return nil
 			}
