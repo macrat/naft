@@ -182,8 +182,7 @@ func getIndexAndHead(l LogStore) (index int, head Hash, err error) {
 }
 
 func (m *SimpleManager) sendRequestVote(c Communicator) error {
-	errch := make(chan error)
-	defer close(errch)
+	log.Printf("candidate[%d]: start request vote", m.term.ID + 1)
 
 	m.Lock()
 	index, head, err := getIndexAndHead(m.Log)
@@ -198,72 +197,37 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 	id := m.term.ID
 	m.Unlock()
 
-	term := Term{
-		Leader: m.self,
-		ID:     id,
-	}
-	req := VoteRequestMessage{
-		Term:  term,
+	msg := VoteRequestMessage{
+		Term:  Term{
+			Leader: m.self,
+			ID:     id,
+		},
 		Index: index,
 		Head:  head,
 	}
 
-	go (func(errch chan error) {
-		ch := make(chan bool)
-		defer close(ch)
+	err = SendRequestVoteAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2 - 1, msg)
 
-		log.Printf("candidate[%d]: start request vote", term.ID)
+	if m.term.Leader != nil {
+		log.Printf("candidate[%d]: cancelled", msg.Term.ID)
+		return fmt.Errorf("cancelled")
+	}
 
-		for _, h := range m.hosts {
-			go (func(h *Host, ch chan bool) {
-				if err := c.SendRequestVote(h, req); err != nil {
-					ch <- false
-					log.Printf("candidate[%d]: failed to send request vote: %s", term.ID, err)
-				} else {
-					ch <- true
-				}
-			})(h, ch)
+	if err != nil {
+		log.Printf("candidate[%d]: failed to promote to leader: %s", msg.Term.ID, err)
+	} else {
+		log.Printf("candidate[%d]: promoted to leader", msg.Term.ID)
+
+		// DEBUG BEGIN
+		m.Lock()
+		m.term.Leader = m.self
+		m.Unlock()
+		if err := m.AppendLog(c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, msg.Term.ID)}); err != nil {
+			log.Printf("debug: failed to append log: %s", err)
 		}
-
-		closed := false
-		votes := 0
-		for range m.hosts {
-			if <-ch {
-				votes++
-			}
-
-			if closed {
-				continue
-			}
-
-			if m.term.Leader != nil {
-				log.Printf("candidate[%d]: cancelled", term.ID)
-				errch <- fmt.Errorf("cancelled")
-				closed = true
-			} else if votes > len(m.hosts)/2 {
-				log.Printf("candidate[%d]: promoted to leader", term.ID)
-
-				// DEBUG BEGIN
-				m.Lock()
-				m.term.Leader = m.self
-				m.Unlock()
-				if err := m.AppendLog(c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, term.ID)}); err != nil {
-					log.Printf("debug: failed to append log: %s", err)
-				}
-				// DEBUG END
-
-				closed = true
-				errch <- nil
-			}
-		}
-
-		if !closed {
-			log.Printf("candidate[%d]: failed to promote to leader", term.ID)
-			errch <- fmt.Errorf("failed to promote to leader")
-		}
-	})(errch)
-
-	return <-errch
+		// DEBUG END
+	}
+	return err
 }
 
 func (m *SimpleManager) waitForLeaderExpire() {

@@ -310,3 +310,46 @@ func SendLogAppendAllHosts(c Communicator, targets []*Host, threshold int, msg L
 
 	return <-errch
 }
+
+func SendRequestVoteAllHosts(c Communicator, targets []*Host, threshold int, msg VoteRequestMessage) error {
+	errch := make(chan error)
+	defer close(errch)
+
+	go (func(errch chan error) {
+		ch := make(chan bool)
+		defer close(ch)
+
+		for _, h := range targets {
+			go (func(h *Host, ch chan bool) {
+				if err := c.SendRequestVote(h, msg); err != nil {
+					ch <- false
+				} else {
+					ch <- true
+				}
+			})(h, ch)
+		}
+
+		closed := false
+		votes := 0
+		for range targets {
+			if <-ch {
+				votes++
+			}
+
+			if closed {
+				continue
+			}
+
+			if votes > threshold {
+				closed = true
+				errch <- nil
+			}
+		}
+
+		if !closed {
+			errch <- fmt.Errorf("expected least %d votes but only %d votes", threshold + 1, votes)
+		}
+	})(errch)
+
+	return <-errch
+}
