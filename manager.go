@@ -181,40 +181,36 @@ func getIndexAndHead(l LogStore) (index int, head Hash, err error) {
 	return
 }
 
-func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
-	promoted = make(chan bool)
+func (m *SimpleManager) sendRequestVote(c Communicator) error {
+	errch := make(chan error)
+	defer close(errch)
 
 	m.Lock()
 	index, head, err := getIndexAndHead(m.Log)
 	m.Unlock()
 	if err != nil {
-		promoted <- false
-		return
+		return fmt.Errorf("failed to get index and head: %s", err)
 	}
 
-	go (func(promoted chan bool) {
-		defer close(promoted)
+	m.Lock()
+	m.term.Leader = nil
+	m.term.ID++
+	id := m.term.ID
+	m.Unlock()
 
+	term := Term{
+		Leader: m.self,
+		ID:     id,
+	}
+	req := VoteRequestMessage{
+		Term:  term,
+		Index: index,
+		Head:  head,
+	}
+
+	go (func(errch chan error) {
 		ch := make(chan bool)
 		defer close(ch)
-
-		m.Lock()
-
-		m.term.Leader = nil
-		m.term.ID++
-		id := m.term.ID
-
-		m.Unlock()
-
-		term := Term{
-			Leader: m.self,
-			ID:     id,
-		}
-		req := VoteRequestMessage{
-			Term:  term,
-			Index: index,
-			Head:  head,
-		}
 
 		log.Printf("candidate[%d]: start request vote", term.ID)
 
@@ -236,10 +232,15 @@ func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 				votes++
 			}
 
+			if closed {
+				continue
+			}
+
 			if m.term.Leader != nil {
-				promoted <- false
+				log.Printf("candidate[%d]: cancelled", term.ID)
+				errch <- fmt.Errorf("cancelled")
 				closed = true
-			} else if votes > len(m.hosts)/2 && !closed {
+			} else if votes > len(m.hosts)/2 {
 				log.Printf("candidate[%d]: promoted to leader", term.ID)
 
 				// DEBUG BEGIN
@@ -252,17 +253,17 @@ func (m *SimpleManager) sendRequestVote(c Communicator) (promoted chan bool) {
 				// DEBUG END
 
 				closed = true
-				promoted <- true
+				errch <- nil
 			}
 		}
 
 		if !closed {
 			log.Printf("candidate[%d]: failed to promote to leader", term.ID)
-			promoted <- false
+			errch <- fmt.Errorf("failed to promote to leader")
 		}
-	})(promoted)
+	})(errch)
 
-	return
+	return <-errch
 }
 
 func (m *SimpleManager) waitForLeaderExpire() {
@@ -289,7 +290,7 @@ func (m *SimpleManager) Manage(c Communicator) {
 		m.waitForLeaderExpire()
 
 		if time.Now().After(m.leaderExpire) {
-			if <-m.sendRequestVote(c) {
+			if m.sendRequestVote(c) == nil {
 				m.term.Leader = m.self
 			}
 		}
