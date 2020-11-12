@@ -274,7 +274,11 @@ func (h *HTTPCommunicator) Entries() (es []LogEntry, err error) {
 	return
 }
 
-func SendLogAppendAllHosts(c Communicator, targets []*Host, threshold int, msg LogAppendMessage) error {
+func OperateToAllHosts(c Communicator, targets []*Host, threshold int, fun func(c Communicator, target *Host, success chan bool)) error {
+	if len(targets) == 0 {
+		return nil
+	}
+
 	errch := make(chan error)
 	defer close(errch)
 
@@ -283,13 +287,7 @@ func SendLogAppendAllHosts(c Communicator, targets []*Host, threshold int, msg L
 		defer close(ch)
 
 		for _, h := range targets {
-			go (func(h *Host, ch chan bool) {
-				if err := c.SendLogAppend(h, msg); err != nil {
-					ch <- false
-				} else {
-					ch <- true
-				}
-			})(h, ch)
+			go fun(c, h, ch)
 		}
 
 		closed := false
@@ -298,58 +296,29 @@ func SendLogAppendAllHosts(c Communicator, targets []*Host, threshold int, msg L
 			if <-ch {
 				success++
 			}
-			if success > threshold && !closed {
+			if !closed && success > threshold {
 				closed = true
 				errch <- nil
 			}
 		}
 		if !closed {
-			errch <- fmt.Errorf("failed to broadcast log entries")
+			errch <- fmt.Errorf("need least %d hosts agree but only %d hosts agreed", threshold + 1, success)
 		}
 	})(errch)
 
 	return <-errch
 }
 
-func SendRequestVoteAllHosts(c Communicator, targets []*Host, threshold int, msg VoteRequestMessage) error {
-	errch := make(chan error)
-	defer close(errch)
+func SendLogAppendToAllHosts(c Communicator, targets []*Host, threshold int, msg LogAppendMessage) error {
+	return OperateToAllHosts(c, targets, threshold, func(c Communicator, h *Host, ch chan bool) {
+		err := c.SendLogAppend(h, msg)
+		ch <- err == nil
+	})
+}
 
-	go (func(errch chan error) {
-		ch := make(chan bool)
-		defer close(ch)
-
-		for _, h := range targets {
-			go (func(h *Host, ch chan bool) {
-				if err := c.SendRequestVote(h, msg); err != nil {
-					ch <- false
-				} else {
-					ch <- true
-				}
-			})(h, ch)
-		}
-
-		closed := false
-		votes := 0
-		for range targets {
-			if <-ch {
-				votes++
-			}
-
-			if closed {
-				continue
-			}
-
-			if votes > threshold {
-				closed = true
-				errch <- nil
-			}
-		}
-
-		if !closed {
-			errch <- fmt.Errorf("expected least %d votes but only %d votes", threshold + 1, votes)
-		}
-	})(errch)
-
-	return <-errch
+func SendRequestVoteToAllHosts(c Communicator, targets []*Host, threshold int, msg VoteRequestMessage) error {
+	return OperateToAllHosts(c, targets, threshold, func(c Communicator, h *Host, ch chan bool) {
+		err := c.SendRequestVote(h, msg)
+		ch <- err == nil
+	})
 }
