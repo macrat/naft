@@ -1,5 +1,9 @@
 package main
 
+import (
+	"context"
+)
+
 type Manager interface {
 	IsLeader() bool
 	Leader() *Host
@@ -8,7 +12,7 @@ type Manager interface {
 	OnRequestVote(c Communicator, r VoteRequestMessage) error
 	OnLogAppend(c Communicator, l LogAppendMessage) error
 	AppendLog(c Communicator, payloads []interface{}) error
-	Manage(c Communicator)
+	Manage(ctx context.Context, c Communicator)
 }
 
 type LogReader interface {

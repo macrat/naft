@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"log"
 	"net/http"
 	"os"
@@ -19,7 +20,7 @@ func main() {
 	man := NewSimpleManager(self, hosts, store)
 	com := NewHTTPCommunicator(man, &http.Client{}, store)
 
-	go man.Manage(com)
+	go man.Manage(context.Background(), com)
 
 	log.Printf("listen on %s", self.Host)
 	log.Fatal(http.ListenAndServe(self.Host, com))

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"math/rand"
@@ -237,7 +238,7 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 	return err
 }
 
-func (m *SimpleManager) waitForLeaderExpire() {
+func (m *SimpleManager) waitForLeaderExpire(ctx context.Context) {
 	wait := m.WaitMin + (time.Duration)(rand.Int63n((int64)(m.WaitMax-m.WaitMin)))
 
 	expire := m.leaderExpire.Sub(time.Now())
@@ -245,11 +246,19 @@ func (m *SimpleManager) waitForLeaderExpire() {
 		expire = 0
 	}
 
-	time.Sleep(expire + wait)
+	select {
+	case <-time.After(expire + wait):
+	case <-ctx.Done():
+	}
 }
 
-func (m *SimpleManager) Manage(c Communicator) {
+func (m *SimpleManager) Manage(ctx context.Context, c Communicator) {
 	for {
+		select {
+		case <-ctx.Done():
+		default:
+		}
+
 		if m.IsLeader() {
 			m.Lock()
 			m.sendLogAppend(c, nil)
@@ -258,7 +267,7 @@ func (m *SimpleManager) Manage(c Communicator) {
 			continue
 		}
 
-		m.waitForLeaderExpire()
+		m.waitForLeaderExpire(ctx)
 
 		if time.Now().After(m.leaderExpire) {
 			if m.sendRequestVote(c) == nil {
