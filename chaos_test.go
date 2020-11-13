@@ -77,15 +77,18 @@ func (p *InProcessPlayground) RandomKill(baseContext context.Context) {
 	p.StartHost(baseContext, h)
 }
 
-func (p *InProcessPlayground) RandomKillLoop(ctx context.Context, interval time.Duration) {
+func (p *InProcessPlayground) RandomKillLoop(ctx context.Context, baseContext context.Context, interval time.Duration) {
+	log.Printf("========== start kill loop ==========")
+
 	tick := time.Tick(interval)
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("========== stop kill loop ==========")
 			return
 		case <-tick:
 		}
-		p.RandomKill(ctx)
+		p.RandomKill(baseContext)
 	}
 }
 
@@ -101,7 +104,7 @@ func (p *InProcessPlayground) TickLogLoop(ctx context.Context, interval time.Dur
 		}
 
 		if err := p.AppendLog(fmt.Sprintf("InProcessPlayground tick count %d", count+1)); err != nil {
-			log.Printf(">>>>>>>>>> failed to append tick log: %s", err)
+			log.Printf(">>>>>>>>>> failed to append tick log: %s <<<<<<<<<<", err)
 		} else {
 			count++
 		}
@@ -209,21 +212,21 @@ func TestChaosRunning(t *testing.T) {
 			m := NewSimpleManager(h, hosts, l)
 			m.LeaderTTL = 10 * time.Millisecond
 			m.WaitMin = 1 * time.Millisecond
-			m.WaitMax = 10 * time.Millisecond
+			m.WaitRand = 9 * time.Millisecond
 			m.KeepAliveInterval = 5 * time.Millisecond
 
 			return l, m
 		},
 	)
-	long, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	long, _ := context.WithTimeout(context.Background(), 11*time.Second)
 	short, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	playground.StartAllHosts(long)
 
-	go playground.RandomKillLoop(short, 100*time.Millisecond)
-	tickCount := playground.TickLogLoop(short, 1*time.Second)
-	log.Printf("========== stop all hosts ==========")
+	go playground.RandomKillLoop(short, long, 50*time.Millisecond)
+	tickCount := playground.TickLogLoop(short, 100*time.Millisecond)
 
 	<-long.Done()
+	log.Printf("========== stop all hosts ==========")
 
 	referenceHead, err := playground.Communicators[playground.Hosts[0]].Log.Head()
 	if err != nil {
