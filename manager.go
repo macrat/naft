@@ -256,6 +256,7 @@ func (m *SimpleManager) Manage(ctx context.Context, c Communicator) {
 	for {
 		select {
 		case <-ctx.Done():
+			return
 		default:
 		}
 
