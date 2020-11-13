@@ -20,7 +20,8 @@ type SimpleManager struct {
 	Log               LogStore
 	LeaderTTL         time.Duration
 	WaitMin           time.Duration
-	WaitMax           time.Duration
+	WaitRand          time.Duration
+	PromoteFailures   int
 	KeepAliveInterval time.Duration
 }
 
@@ -31,7 +32,7 @@ func NewSimpleManager(self *Host, hosts []*Host, log LogStore) *SimpleManager {
 		Log:               log,
 		LeaderTTL:         1 * time.Second,
 		WaitMin:           500 * time.Millisecond,
-		WaitMax:           750 * time.Millisecond,
+		WaitRand:          250 * time.Millisecond,
 		KeepAliveInterval: 500 * time.Millisecond,
 	}
 }
@@ -229,8 +230,10 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 
 	if err != nil {
 		log.Printf("candidate[%d]: failed to promote to leader: %s", msg.Term.ID, err)
+		m.PromoteFailures++
 	} else {
 		log.Printf("candidate[%d]: promoted to leader", msg.Term.ID)
+		m.PromoteFailures = 0
 
 		m.Lock()
 		m.term = msg.Term
@@ -246,7 +249,7 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 }
 
 func (m *SimpleManager) waitForLeaderExpire(ctx context.Context) {
-	wait := m.WaitMin + (time.Duration)(rand.Int63n((int64)(m.WaitMax-m.WaitMin)))
+	wait := m.WaitMin + (time.Duration)(rand.Int63n((int64)(m.WaitRand) * (int64)(m.PromoteFailures + 1)))
 
 	expire := m.leaderExpire.Sub(time.Now())
 	if expire < 0 {
