@@ -100,7 +100,7 @@ func (p *InProcessPlayground) TickLogLoop(ctx context.Context, interval time.Dur
 			return count
 		}
 
-		if err := p.AppendLog(fmt.Sprintf("InProcessPlayground tick count %d", count + 1)); err != nil {
+		if err := p.AppendLog(fmt.Sprintf("InProcessPlayground tick count %d", count+1)); err != nil {
 			log.Printf(">>>>>>>>>> failed to append tick log: %s", err)
 		} else {
 			count++
@@ -215,12 +215,12 @@ func TestChaosRunning(t *testing.T) {
 			return l, m
 		},
 	)
-	long, _ := context.WithTimeout(context.Background(), 15 * time.Second)
-	short, _ := context.WithTimeout(context.Background(), 10 * time.Second)
+	long, _ := context.WithTimeout(context.Background(), 15*time.Second)
+	short, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	playground.StartAllHosts(long)
 
-	go playground.RandomKillLoop(short, 100 * time.Millisecond)
-	tickCount := playground.TickLogLoop(short, 1 * time.Second)
+	go playground.RandomKillLoop(short, 100*time.Millisecond)
+	tickCount := playground.TickLogLoop(short, 1*time.Second)
 	log.Printf("========== stop all hosts ==========")
 
 	<-long.Done()
