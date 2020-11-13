@@ -7,6 +7,7 @@ import (
 type Manager interface {
 	IsLeader() bool
 	Leader() *Host
+	IsStable() bool
 	CurrentTerm() Term
 	Hosts() []*Host
 	OnRequestVote(c Communicator, r VoteRequestMessage) error

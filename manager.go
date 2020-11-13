@@ -16,6 +16,7 @@ type SimpleManager struct {
 	leaderExpire      time.Time
 	term              Term
 	hosts             []*Host
+	stable            bool
 	Log               LogStore
 	LeaderTTL         time.Duration
 	WaitMin           time.Duration
@@ -41,6 +42,10 @@ func (m *SimpleManager) IsLeader() bool {
 
 func (m *SimpleManager) Leader() *Host {
 	return m.term.Leader
+}
+
+func (m *SimpleManager) IsStable() bool {
+	return m.stable
 }
 
 func (m *SimpleManager) CurrentTerm() Term {
@@ -86,6 +91,7 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 
 	log.Printf("request-vote: change term to %s", r.Term)
 
+	m.stable = false
 	m.term = r.Term
 	m.leaderExpire = time.Now().Add(m.LeaderTTL)
 
@@ -104,6 +110,7 @@ func (m *SimpleManager) OnLogAppend(c Communicator, l LogAppendMessage) error {
 		log.Printf("keep-alive: change term to %s", l.Term)
 	}
 
+	m.stable = true
 	m.term = l.Term
 	m.leaderExpire = time.Now().Add(m.LeaderTTL)
 
