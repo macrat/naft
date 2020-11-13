@@ -256,6 +256,7 @@ func (m *SimpleManager) Manage(ctx context.Context, c Communicator) {
 	for {
 		select {
 		case <-ctx.Done():
+			log.Printf("manager: stop manager on %s", m.self)
 			return
 		default:
 		}
@@ -264,7 +265,12 @@ func (m *SimpleManager) Manage(ctx context.Context, c Communicator) {
 			m.Lock()
 			m.sendLogAppend(c, nil)
 			m.Unlock()
-			time.Sleep(m.KeepAliveInterval)
+			select {
+			case <-ctx.Done():
+				log.Printf("manager: stop manager on %s", m.self)
+				return
+			case <-time.After(m.KeepAliveInterval):
+			}
 			continue
 		}
 
