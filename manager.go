@@ -166,7 +166,7 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) error 
 		Head:    head,
 	}
 
-	err = SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2+len(m.hosts)%2-1, msg)
+	err = SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2, msg)
 	if err != nil && len(entries) > 0 {
 		log.Printf("leader[%d]: failed to replicate log: %s", m.term.ID, err)
 
@@ -213,7 +213,7 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 	}
 	m.Unlock()
 
-	err = SendRequestVoteToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2+len(m.hosts)%2-1, msg)
+	err = SendRequestVoteToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2, msg)
 
 	if m.term.Leader != nil {
 		log.Printf("candidate[%d]: cancelled", msg.Term.ID)
