@@ -96,7 +96,7 @@ func TestMakeLogEntries(t *testing.T) {
 	}
 }
 
-func TestLogStore(t *testing.T) {
+func TestInMemoryLogStore(t *testing.T) {
 	store := InMemoryLogStore{}
 
 	if !store.IsValid() {
@@ -174,7 +174,7 @@ func TestLogStore(t *testing.T) {
 	}
 }
 
-func TestLogStore_IsValid_invalid(t *testing.T) {
+func TestInMemoryLogStore_IsValid_invalid(t *testing.T) {
 	first := &InMemoryLogStore{
 		entries: []LogEntry{
 			{MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0"), "hogefuga"},
@@ -200,7 +200,7 @@ func TestLogStore_IsValid_invalid(t *testing.T) {
 	}
 }
 
-func TestLogStore_SetHead(t *testing.T) {
+func TestInMemoryLogStore_SetHead(t *testing.T) {
 	last := MustParseHash("4444444444444444444444444444444444444444444444444444444444444444")
 	next := MustParseHash("2222222222222222222222222222222222222222222222222222222222222222")
 	nosuch := MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0")
@@ -247,7 +247,7 @@ func TestLogStore_SetHead(t *testing.T) {
 	}
 }
 
-func TestLogStore_SyncWith(t *testing.T) {
+func TestInMemoryLogStore_SyncWith(t *testing.T) {
 	store := &InMemoryLogStore{
 		entries: []LogEntry{
 			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
