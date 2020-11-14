@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
@@ -97,7 +98,7 @@ type InMemoryLogStore struct {
 	entries []LogEntry `json:"entries"`
 }
 
-func (l *InMemoryLogStore) Entries() ([]LogEntry, error) {
+func (l *InMemoryLogStore) Entries(_ context.Context) ([]LogEntry, error) {
 	if l.entries == nil {
 		return []LogEntry{}, nil
 	}
@@ -115,7 +116,7 @@ func (l *InMemoryLogStore) lastEntry() *LogEntry {
 	return &result
 }
 
-func (l *InMemoryLogStore) Head() (Hash, error) {
+func (l *InMemoryLogStore) Head(_ context.Context) (Hash, error) {
 	if e := l.lastEntry(); e != nil {
 		return e.Hash, nil
 	} else {
@@ -123,7 +124,7 @@ func (l *InMemoryLogStore) Head() (Hash, error) {
 	}
 }
 
-func (l *InMemoryLogStore) Index() (int, error) {
+func (l *InMemoryLogStore) Index(_ context.Context) (int, error) {
 	return len(l.entries), nil
 }
 
@@ -141,7 +142,7 @@ func validateLog(prev Hash, entries []LogEntry) bool {
 	return true
 }
 
-func (l *InMemoryLogStore) IsValid() bool {
+func (l *InMemoryLogStore) IsValid(_ context.Context) bool {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -161,7 +162,7 @@ func (l *InMemoryLogStore) find(h Hash) int {
 	return -1
 }
 
-func (l *InMemoryLogStore) Get(h Hash) (LogEntry, error) {
+func (l *InMemoryLogStore) Get(_ context.Context, h Hash) (LogEntry, error) {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -172,7 +173,7 @@ func (l *InMemoryLogStore) Get(h Hash) (LogEntry, error) {
 	return l.entries[i], nil
 }
 
-func (l *InMemoryLogStore) Since(h Hash) ([]LogEntry, error) {
+func (l *InMemoryLogStore) Since(_ context.Context, h Hash) ([]LogEntry, error) {
 	l.RLock()
 	defer l.RUnlock()
 
@@ -217,14 +218,14 @@ func (l *InMemoryLogStore) appendWithoutLock(entries []LogEntry) error {
 	return nil
 }
 
-func (l *InMemoryLogStore) Append(entries []LogEntry) error {
+func (l *InMemoryLogStore) Append(_ context.Context, entries []LogEntry) error {
 	l.Lock()
 	defer l.Unlock()
 
 	return l.appendWithoutLock(entries)
 }
 
-func (l *InMemoryLogStore) SetHead(h Hash) error {
+func (l *InMemoryLogStore) SetHead(_ context.Context, h Hash) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -237,7 +238,7 @@ func (l *InMemoryLogStore) SetHead(h Hash) error {
 	return fmt.Errorf("no such entry: %s", h)
 }
 
-func (l *InMemoryLogStore) SyncWith(r LogReader, head Hash) error {
+func (l *InMemoryLogStore) SyncWith(ctx context.Context, r LogReader, head Hash) error {
 	l.Lock()
 	defer l.Unlock()
 
@@ -250,7 +251,7 @@ func (l *InMemoryLogStore) SyncWith(r LogReader, head Hash) error {
 	}
 
 	for i := len(l.entries) - 1; i >= 0; i-- {
-		if entries, err := r.Since(l.entries[i].Hash); err == nil {
+		if entries, err := r.Since(ctx, l.entries[i].Hash); err == nil {
 			if err := l.appendWithoutLock(entries); err == nil {
 				log.Printf("log-store: sync download from %d for %s", i, head)
 				return nil
@@ -259,7 +260,7 @@ func (l *InMemoryLogStore) SyncWith(r LogReader, head Hash) error {
 	}
 
 	log.Printf("log-store: sync download all for %s", head)
-	if entries, err := r.Entries(); err != nil {
+	if entries, err := r.Entries(ctx); err != nil {
 		return err
 	} else {
 		l.entries = entries

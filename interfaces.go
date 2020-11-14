@@ -10,24 +10,24 @@ type Manager interface {
 	IsStable() bool
 	CurrentTerm() Term
 	Hosts() []*Host
-	OnRequestVote(c Communicator, r RequestVoteMessage) error
-	OnAppendLog(c Communicator, l AppendLogMessage) error
-	AppendLog(c Communicator, payloads []interface{}) error
-	Run(ctx context.Context, c Communicator)
+	OnRequestVote(context.Context, Communicator, RequestVoteMessage) error
+	OnAppendLog(context.Context, Communicator, AppendLogMessage) error
+	AppendLog(ctx context.Context, c Communicator, payloads []interface{}) error
+	Run(context.Context, Communicator)
 }
 
 type LogReader interface {
-	Head() (Hash, error)
-	Index() (int, error)
-	Get(h Hash) (LogEntry, error)
-	Since(h Hash) ([]LogEntry, error)
-	Entries() ([]LogEntry, error)
+	Head(ctx context.Context) (Hash, error)
+	Index(ctx context.Context) (int, error)
+	Get(ctx context.Context, h Hash) (LogEntry, error)
+	Since(ctx context.Context, h Hash) ([]LogEntry, error)
+	Entries(ctx context.Context) ([]LogEntry, error)
 }
 
 type MessageSender interface {
-	AppendLogTo(target *Host, l AppendLogMessage) error
-	RequestVoteTo(target *Host, r RequestVoteMessage) error
-	AppendLog(payloads []interface{}) error
+	AppendLogTo(ctx context.Context, target *Host, l AppendLogMessage) error
+	RequestVoteTo(ctx context.Context, target *Host, r RequestVoteMessage) error
+	AppendLog(ctx context.Context, payloads []interface{}) error
 }
 
 type Communicator interface {
@@ -38,8 +38,8 @@ type Communicator interface {
 type LogStore interface {
 	LogReader
 
-	IsValid() bool
-	SetHead(h Hash) error
-	Append(es []LogEntry) error
-	SyncWith(r LogReader, head Hash) error
+	IsValid(ctx context.Context) bool
+	SetHead(ctx context.Context, h Hash) error
+	Append(ctx context.Context, es []LogEntry) error
+	SyncWith(ctx context.Context, r LogReader, head Hash) error
 }

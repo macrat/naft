@@ -2,11 +2,13 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -32,18 +34,20 @@ func (h RedirectLeaderHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
 type HTTPCommunicator struct {
-	mux     *mux.Router
-	manager Manager
-	Client  *http.Client
-	Log     LogStore
+	mux              *mux.Router
+	manager          Manager
+	Client           *http.Client
+	Log              LogStore
+	OperationTimeout time.Duration
 }
 
 func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HTTPCommunicator {
 	c := HTTPCommunicator{
-		mux:     mux.NewRouter(),
-		manager: manager,
-		Client:  client,
-		Log:     log,
+		mux:              mux.NewRouter(),
+		manager:          manager,
+		Client:           client,
+		Log:              log,
+		OperationTimeout: 100 * time.Millisecond,
 	}
 
 	c.mux.HandleFunc("/cluster/members", c.getHosts).Methods("GET")
@@ -72,6 +76,7 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 }
 
 func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
+	ctx := h.makeOperationContext()
 	defer r.Body.Close()
 
 	l, err := ReadAppendLogMessage(r.Body)
@@ -81,7 +86,7 @@ func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	err = h.manager.OnAppendLog(h, l)
+	err = h.manager.OnAppendLog(ctx, h, l)
 
 	if err != nil {
 		log.Printf("append-log: %s: %s", l.Term, err)
@@ -92,6 +97,7 @@ func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request) {
+	ctx := h.makeOperationContext()
 	defer r.Body.Close()
 
 	req, err := ReadRequestVoteMessage(r.Body)
@@ -101,7 +107,7 @@ func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	err = h.manager.OnRequestVote(h, req)
+	err = h.manager.OnRequestVote(ctx, h, req)
 
 	if err != nil {
 		log.Printf("request-vote: %s: %s", req.Term, err)
@@ -109,6 +115,11 @@ func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
 	}
+}
+
+func (h *HTTPCommunicator) makeOperationContext() context.Context {
+	ctx, _ := context.WithTimeout(context.Background(), h.OperationTimeout)
+	return ctx
 }
 
 func (h *HTTPCommunicator) getTerm(w http.ResponseWriter, r *http.Request) {
@@ -130,7 +141,9 @@ func (h *HTTPCommunicator) getHosts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getLog(w http.ResponseWriter, r *http.Request) {
-	if es, err := h.Log.Entries(); err != nil {
+	ctx := h.makeOperationContext()
+
+	if es, err := h.Log.Entries(ctx); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	} else {
 		enc := json.NewEncoder(w)
@@ -139,6 +152,7 @@ func (h *HTTPCommunicator) getLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getLogSince(w http.ResponseWriter, r *http.Request) {
+	ctx := h.makeOperationContext()
 	raw := mux.Vars(r)["from"]
 
 	if raw == "" {
@@ -152,7 +166,7 @@ func (h *HTTPCommunicator) getLogSince(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entries, err := h.Log.Since(hash)
+	entries, err := h.Log.Since(ctx, hash)
 	if err != nil {
 		http.Error(w, "no such entry", http.StatusNotFound)
 		return
@@ -163,6 +177,7 @@ func (h *HTTPCommunicator) getLogSince(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) postLog(w http.ResponseWriter, r *http.Request) {
+	ctx := h.makeOperationContext()
 	defer r.Body.Close()
 
 	if !h.manager.IsStable() {
@@ -187,7 +202,7 @@ func (h *HTTPCommunicator) postLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if h.manager.AppendLog(h, payloads) != nil {
+	if h.manager.AppendLog(ctx, h, payloads) != nil {
 		http.Error(w, "failed to append log", http.StatusInternalServerError)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
@@ -195,6 +210,7 @@ func (h *HTTPCommunicator) postLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getLogEntry(w http.ResponseWriter, r *http.Request) {
+	ctx := h.makeOperationContext()
 	vars := mux.Vars(r)
 
 	hash, err := ParseHash(vars["hash"])
@@ -203,7 +219,7 @@ func (h *HTTPCommunicator) getLogEntry(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	entry, err := h.Log.Get(hash)
+	entry, err := h.Log.Get(ctx, hash)
 	if err != nil {
 		http.Error(w, "no such entry", http.StatusNotFound)
 		return
@@ -214,7 +230,9 @@ func (h *HTTPCommunicator) getLogEntry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getHead(w http.ResponseWriter, r *http.Request) {
-	if hash, err := h.Log.Head(); err != nil {
+	ctx := h.makeOperationContext()
+
+	if hash, err := h.Log.Head(ctx); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	} else {
 		enc := json.NewEncoder(w)
@@ -223,7 +241,9 @@ func (h *HTTPCommunicator) getHead(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getIndex(w http.ResponseWriter, r *http.Request) {
-	if index, err := h.Log.Index(); err != nil {
+	ctx := h.makeOperationContext()
+
+	if index, err := h.Log.Index(ctx); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
 	} else {
 		enc := json.NewEncoder(w)
@@ -235,7 +255,7 @@ func (h *HTTPCommunicator) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	h.mux.ServeHTTP(w, r)
 }
 
-func (h *HTTPCommunicator) send(target *Host, path string, data interface{}) error {
+func (h *HTTPCommunicator) send(ctx context.Context, target *Host, path string, data interface{}) error {
 	u, err := target.URL(path)
 	if err != nil {
 		return err
@@ -248,7 +268,13 @@ func (h *HTTPCommunicator) send(target *Host, path string, data interface{}) err
 		return err
 	}
 
-	resp, err := h.Client.Post(u, "text/json", buf)
+	req, err := http.NewRequestWithContext(ctx, "POST", u, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Add("Content-Type", "text/application")
+
+	resp, err := h.Client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -265,7 +291,7 @@ func (h *HTTPCommunicator) send(target *Host, path string, data interface{}) err
 	return nil
 }
 
-func (h *HTTPCommunicator) getByLeader(path string, buf interface{}) error {
+func (h *HTTPCommunicator) getByLeader(ctx context.Context, path string, buf interface{}) error {
 	leader := h.manager.Leader()
 	if leader == nil {
 		return fmt.Errorf("leader is not determined")
@@ -276,7 +302,12 @@ func (h *HTTPCommunicator) getByLeader(path string, buf interface{}) error {
 		return err
 	}
 
-	resp, err := h.Client.Get(u)
+	req, err := http.NewRequestWithContext(ctx, "GET", u, nil)
+	if err != nil {
+		return err
+	}
+
+	resp, err := h.Client.Do(req)
 	if err != nil {
 		return err
 	}
@@ -286,48 +317,48 @@ func (h *HTTPCommunicator) getByLeader(path string, buf interface{}) error {
 	return dec.Decode(buf)
 }
 
-func (h *HTTPCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
-	return h.send(target, "/log/head", l)
+func (h *HTTPCommunicator) AppendLogTo(ctx context.Context, target *Host, l AppendLogMessage) error {
+	return h.send(ctx, target, "/log/head", l)
 }
 
-func (h *HTTPCommunicator) RequestVoteTo(target *Host, r RequestVoteMessage) error {
-	return h.send(target, "/cluster/term", r)
+func (h *HTTPCommunicator) RequestVoteTo(ctx context.Context, target *Host, r RequestVoteMessage) error {
+	return h.send(ctx, target, "/cluster/term", r)
 }
 
-func (h *HTTPCommunicator) AppendLog(payloads []interface{}) error {
+func (h *HTTPCommunicator) AppendLog(ctx context.Context, payloads []interface{}) error {
 	leader := h.manager.Leader()
 	if leader == nil {
 		return fmt.Errorf("leader is not determined")
 	}
-	return h.send(leader, "/log", payloads)
+	return h.send(ctx, leader, "/log", payloads)
 }
 
-func (h *HTTPCommunicator) Head() (hash Hash, err error) {
-	err = h.getByLeader(fmt.Sprintf("/log/head"), &hash)
+func (h *HTTPCommunicator) Head(ctx context.Context) (hash Hash, err error) {
+	err = h.getByLeader(ctx, fmt.Sprintf("/log/head"), &hash)
 	return
 }
 
-func (h *HTTPCommunicator) Index() (index int, err error) {
-	err = h.getByLeader(fmt.Sprintf("/log/index"), &index)
+func (h *HTTPCommunicator) Index(ctx context.Context) (index int, err error) {
+	err = h.getByLeader(ctx, fmt.Sprintf("/log/index"), &index)
 	return
 }
 
-func (h *HTTPCommunicator) Get(hash Hash) (e LogEntry, err error) {
-	err = h.getByLeader(fmt.Sprintf("/log/%s", hash), &e)
+func (h *HTTPCommunicator) Get(ctx context.Context, hash Hash) (e LogEntry, err error) {
+	err = h.getByLeader(ctx, fmt.Sprintf("/log/%s", hash), &e)
 	return
 }
 
-func (h *HTTPCommunicator) Since(hash Hash) (es []LogEntry, err error) {
-	err = h.getByLeader(fmt.Sprintf("/log?from=%s", hash), &es)
+func (h *HTTPCommunicator) Since(ctx context.Context, hash Hash) (es []LogEntry, err error) {
+	err = h.getByLeader(ctx, fmt.Sprintf("/log?from=%s", hash), &es)
 	return
 }
 
-func (h *HTTPCommunicator) Entries() (es []LogEntry, err error) {
-	err = h.getByLeader(fmt.Sprintf("/log"), &es)
+func (h *HTTPCommunicator) Entries(ctx context.Context) (es []LogEntry, err error) {
+	err = h.getByLeader(ctx, fmt.Sprintf("/log"), &es)
 	return
 }
 
-func OperateToAllHosts(m MessageSender, targets []*Host, needAgrees int, fun func(m MessageSender, target *Host, agree chan bool)) error {
+func OperateToAllHosts(ctx context.Context, m MessageSender, targets []*Host, needAgrees int, fun func(ctx context.Context, m MessageSender, target *Host, agree chan bool)) error {
 	if len(targets) == 0 {
 		return nil
 	}
@@ -340,7 +371,7 @@ func OperateToAllHosts(m MessageSender, targets []*Host, needAgrees int, fun fun
 		defer close(ch)
 
 		for _, h := range targets {
-			go fun(m, h, ch)
+			go fun(ctx, m, h, ch)
 		}
 
 		closed := false
@@ -362,14 +393,14 @@ func OperateToAllHosts(m MessageSender, targets []*Host, needAgrees int, fun fun
 	return <-errch
 }
 
-func SendAppendLogToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg AppendLogMessage) error {
-	return OperateToAllHosts(m, targets, needAgrees, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.AppendLogTo(h, msg) == nil
+func SendAppendLogToAllHosts(ctx context.Context, m MessageSender, targets []*Host, needAgrees int, msg AppendLogMessage) error {
+	return OperateToAllHosts(ctx, m, targets, needAgrees, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
+		agree <- m.AppendLogTo(ctx, h, msg) == nil
 	})
 }
 
-func SendRequestVoteToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg RequestVoteMessage) error {
-	return OperateToAllHosts(m, targets, needAgrees, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.RequestVoteTo(h, msg) == nil
+func SendRequestVoteToAllHosts(ctx context.Context, m MessageSender, targets []*Host, needAgrees int, msg RequestVoteMessage) error {
+	return OperateToAllHosts(ctx, m, targets, needAgrees, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
+		agree <- m.RequestVoteTo(ctx, h, msg) == nil
 	})
 }

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"testing"
 )
@@ -24,30 +25,30 @@ func (dc DummyCommunicator) test(target *Host) error {
 	return fmt.Errorf("%s is not listed in allows", target)
 }
 
-func (dc DummyCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
+func (dc DummyCommunicator) AppendLogTo(ctx context.Context, target *Host, l AppendLogMessage) error {
 	return dc.test(target)
 }
 
-func (dc DummyCommunicator) RequestVoteTo(target *Host, l RequestVoteMessage) error {
+func (dc DummyCommunicator) RequestVoteTo(ctx context.Context, target *Host, l RequestVoteMessage) error {
 	return dc.test(target)
 }
 
-func (dc DummyCommunicator) AppendLog(payloads []interface{}) error {
+func (dc DummyCommunicator) AppendLog(ctx context.Context, payloads []interface{}) error {
 	return fmt.Errorf("not implemented")
 }
 
 func TestOperateToAllHosts(t *testing.T) {
 	hs := MakeHosts("http://localhost:5000", "http://localhost:5001", "http://localhost:5002", "http://localhost:5003")
 
-	err := OperateToAllHosts(DummyCommunicator{}, hs, 4, func(m MessageSender, h *Host, agree chan bool) {
+	err := OperateToAllHosts(context.Background(), DummyCommunicator{}, hs, 4, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
 		agree <- true
 	})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
-	err = OperateToAllHosts(DummyCommunicator(hs[:1]), hs, 4, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.AppendLogTo(h, AppendLogMessage{}) == nil
+	err = OperateToAllHosts(context.Background(), DummyCommunicator(hs[:1]), hs, 4, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
+		agree <- m.AppendLogTo(ctx, h, AppendLogMessage{}) == nil
 	})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
@@ -55,8 +56,8 @@ func TestOperateToAllHosts(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	err = OperateToAllHosts(DummyCommunicator(hs[:2]), hs, 3, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.AppendLogTo(h, AppendLogMessage{}) == nil
+	err = OperateToAllHosts(context.Background(), DummyCommunicator(hs[:2]), hs, 3, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
+		agree <- m.AppendLogTo(ctx, h, AppendLogMessage{}) == nil
 	})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
@@ -64,15 +65,15 @@ func TestOperateToAllHosts(t *testing.T) {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	err = OperateToAllHosts(DummyCommunicator(hs[:2]), hs, 2, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.AppendLogTo(h, AppendLogMessage{}) == nil
+	err = OperateToAllHosts(context.Background(), DummyCommunicator(hs[:2]), hs, 2, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
+		agree <- m.AppendLogTo(ctx, h, AppendLogMessage{}) == nil
 	})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
-	err = OperateToAllHosts(DummyCommunicator(hs[:2]), []*Host{}, 2, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.AppendLogTo(h, AppendLogMessage{}) == nil
+	err = OperateToAllHosts(context.Background(), DummyCommunicator(hs[:2]), []*Host{}, 2, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
+		agree <- m.AppendLogTo(ctx, h, AppendLogMessage{}) == nil
 	})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
@@ -83,12 +84,12 @@ func TestSendAppendToAllHosts(t *testing.T) {
 	hs := MakeHosts("http://localhost:5000", "http://localhost:5001", "http://localhost:5002", "http://localhost:5003")
 	dc := DummyCommunicator(hs[:2])
 
-	err := SendAppendLogToAllHosts(dc, hs, 2, AppendLogMessage{})
+	err := SendAppendLogToAllHosts(context.Background(), dc, hs, 2, AppendLogMessage{})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
-	err = SendAppendLogToAllHosts(dc, hs, 3, AppendLogMessage{})
+	err = SendAppendLogToAllHosts(context.Background(), dc, hs, 3, AppendLogMessage{})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
 	} else if err.Error() != "need least 3 hosts agree but only 2 hosts agreed" {
@@ -100,12 +101,12 @@ func TestRequestVoteToAllHosts(t *testing.T) {
 	hs := MakeHosts("http://localhost:5000", "http://localhost:5001", "http://localhost:5002", "http://localhost:5003")
 	dc := DummyCommunicator(hs[:2])
 
-	err := SendRequestVoteToAllHosts(dc, hs, 2, RequestVoteMessage{})
+	err := SendRequestVoteToAllHosts(context.Background(), dc, hs, 2, RequestVoteMessage{})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
-	err = SendRequestVoteToAllHosts(dc, hs, 3, RequestVoteMessage{})
+	err = SendRequestVoteToAllHosts(context.Background(), dc, hs, 3, RequestVoteMessage{})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
 	} else if err.Error() != "need least 3 hosts agree but only 2 hosts agreed" {

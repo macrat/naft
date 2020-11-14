@@ -47,9 +47,12 @@ func (p *InProcessPlayground) StartHost(baseContext context.Context, h *Host, re
 	defer p.Unlock()
 
 	if c, ok := p.Cancels[h]; ok {
-		idx, _ := p.Communicators[h].Log.Index()
+		localContext, _ := context.WithTimeout(baseContext, 10*time.Millisecond)
+		idx, _ := p.Communicators[h].Log.Index(localContext)
 		log.Printf("---------- killed host head index: %d ----------", idx)
+
 		c()
+
 		select {
 		case <-time.After(restartDelay):
 		case <-baseContext.Done():
@@ -110,7 +113,8 @@ func (p *InProcessPlayground) TickLogLoop(ctx context.Context, interval time.Dur
 			return count
 		}
 
-		if err := p.AppendLog(fmt.Sprintf("InProcessPlayground tick count %d", count+1)); err != nil {
+		localContext, _ := context.WithTimeout(ctx, 10*time.Millisecond)
+		if err := p.AppendLog(localContext, fmt.Sprintf("InProcessPlayground tick count %d", count+1)); err != nil {
 			log.Printf(">>>>>>>>>> failed to append tick log: %s <<<<<<<<<<", err)
 		} else {
 			count++
@@ -118,7 +122,7 @@ func (p *InProcessPlayground) TickLogLoop(ctx context.Context, interval time.Dur
 	}
 }
 
-func (p *InProcessPlayground) AppendLog(value interface{}) error {
+func (p *InProcessPlayground) AppendLog(ctx context.Context, value interface{}) error {
 	p.Lock()
 	defer p.Unlock()
 
@@ -133,7 +137,7 @@ func (p *InProcessPlayground) AppendLog(value interface{}) error {
 	}
 
 	c := p.Communicators[leader]
-	return c.Manager.AppendLog(c, []interface{}{value})
+	return c.Manager.AppendLog(ctx, c, []interface{}{value})
 }
 
 type InProcessCommunicator struct {
@@ -150,64 +154,64 @@ func (c InProcessCommunicator) getLeader() (*InProcessCommunicator, error) {
 	}
 }
 
-func (c InProcessCommunicator) Head() (Hash, error) {
+func (c InProcessCommunicator) Head(ctx context.Context) (Hash, error) {
 	if l, err := c.getLeader(); err != nil {
 		return Hash{}, err
 	} else {
-		return l.Log.Head()
+		return l.Log.Head(ctx)
 	}
 }
 
-func (c InProcessCommunicator) Index() (int, error) {
+func (c InProcessCommunicator) Index(ctx context.Context) (int, error) {
 	if l, err := c.getLeader(); err != nil {
 		return -1, err
 	} else {
-		return l.Log.Index()
+		return l.Log.Index(ctx)
 	}
 }
 
-func (c InProcessCommunicator) Get(h Hash) (LogEntry, error) {
+func (c InProcessCommunicator) Get(ctx context.Context, h Hash) (LogEntry, error) {
 	if l, err := c.getLeader(); err != nil {
 		return LogEntry{}, err
 	} else {
-		return l.Log.Get(h)
+		return l.Log.Get(ctx, h)
 	}
 }
 
-func (c InProcessCommunicator) Since(h Hash) ([]LogEntry, error) {
+func (c InProcessCommunicator) Since(ctx context.Context, h Hash) ([]LogEntry, error) {
 	if l, err := c.getLeader(); err != nil {
 		return nil, err
 	} else {
-		return l.Log.Since(h)
+		return l.Log.Since(ctx, h)
 	}
 }
 
-func (c InProcessCommunicator) Entries() ([]LogEntry, error) {
+func (c InProcessCommunicator) Entries(ctx context.Context) ([]LogEntry, error) {
 	if l, err := c.getLeader(); err != nil {
 		return nil, err
 	} else {
-		return l.Log.Entries()
+		return l.Log.Entries(ctx)
 	}
 }
 
-func (c InProcessCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
+func (c InProcessCommunicator) AppendLogTo(ctx context.Context, target *Host, l AppendLogMessage) error {
 	if t, ok := c.Playground.Communicators[target]; !ok {
 		return fmt.Errorf("no such target: %s", target)
 	} else {
-		return t.Manager.OnAppendLog(c, l)
+		return t.Manager.OnAppendLog(ctx, c, l)
 	}
 }
 
-func (c InProcessCommunicator) RequestVoteTo(target *Host, r RequestVoteMessage) error {
+func (c InProcessCommunicator) RequestVoteTo(ctx context.Context, target *Host, r RequestVoteMessage) error {
 	if t, ok := c.Playground.Communicators[target]; !ok {
 		return fmt.Errorf("no such target: %s", target)
 	} else {
-		return t.Manager.OnRequestVote(c, r)
+		return t.Manager.OnRequestVote(ctx, c, r)
 	}
 }
 
-func (c InProcessCommunicator) AppendLog(payloads []interface{}) error {
-	return c.Playground.AppendLog(payloads)
+func (c InProcessCommunicator) AppendLog(ctx context.Context, payloads []interface{}) error {
+	return c.Playground.AppendLog(ctx, payloads)
 }
 
 func TestChaosRunning(t *testing.T) {
@@ -239,12 +243,12 @@ func TestChaosRunning(t *testing.T) {
 	<-long.Done()
 	log.Printf("========== stop all hosts ==========")
 
-	referenceHead, err := playground.Communicators[playground.Hosts[0]].Log.Head()
+	referenceHead, err := playground.Communicators[playground.Hosts[0]].Log.Head(context.Background())
 	if err != nil {
 		t.Fatalf("failed to get head of %s", playground.Hosts[0])
 	}
 
-	referenceIndex, err := playground.Communicators[playground.Hosts[0]].Log.Index()
+	referenceIndex, err := playground.Communicators[playground.Hosts[0]].Log.Index(context.Background())
 	if err != nil {
 		t.Fatalf("failed to get index of %s", playground.Hosts[0])
 	}
@@ -252,23 +256,23 @@ func TestChaosRunning(t *testing.T) {
 	for _, h := range playground.Hosts {
 		log := playground.Communicators[h].Log
 
-		if !log.IsValid() {
+		if !log.IsValid(context.Background()) {
 			t.Errorf("%s: invalid log entries", h)
 		}
 
-		if head, err := log.Head(); err != nil {
+		if head, err := log.Head(context.Background()); err != nil {
 			t.Errorf("%s: failed to get head: %s", h, err)
 		} else if referenceHead != head {
 			t.Errorf("%s: inconsistent head: %s and %s", h, referenceHead, head)
 		}
 
-		if index, err := log.Index(); err != nil {
+		if index, err := log.Index(context.Background()); err != nil {
 			t.Errorf("%s: failed to get index: %s", h, err)
 		} else if referenceIndex != index {
 			t.Errorf("%s: inconsistent index: %d and %d", h, referenceIndex, index)
 		}
 
-		if entries, err := log.Entries(); err != nil {
+		if entries, err := log.Entries(context.Background()); err != nil {
 			t.Errorf("%s: failed to get entries: %s", h, err)
 		} else {
 			count := 0
