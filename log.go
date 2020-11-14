@@ -250,9 +250,9 @@ func (l *InMemoryLogStore) SyncWith(ctx context.Context, r LogReader, head Hash)
 		return nil
 	}
 
-	for i := len(l.entries) - 1; i >= 0; i-- {
+	for i := len(l.entries) - 1; i > 0; i-- {
 		if entries, err := r.Since(ctx, l.entries[i].Hash); err == nil {
-			if err := l.appendWithoutLock(entries); err == nil {
+			if err := l.appendWithoutLock(entries[1:]); err == nil {
 				log.Printf("log-store: sync download from %d: new head is %s", i, head)
 				return nil
 			}

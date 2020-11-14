@@ -286,6 +286,14 @@ func TestInMemoryLogStore_SyncWith(t *testing.T) {
 		},
 	}
 
+	if err := store.SyncWith(context.Background(), long, MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61")); err != nil {
+		t.Errorf("failed to sync: %s", err)
+	} else if len(store.entries) != 3 {
+		t.Errorf("unexpected entries: %#v", store.entries)
+	} else if store.entries[len(store.entries)-1].String() != "LogEntry#482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61" {
+		t.Errorf("unexpected last entry: %#v", store.entries[len(store.entries)-1])
+	}
+
 	if err := store.SyncWith(context.Background(), short, MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf")); err != nil {
 		t.Errorf("failed to sync: %s", err)
 	} else if len(store.entries) != 1 {
