@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 )
 
 func MakeHosts(hosts ...string) []*Host {
@@ -77,6 +78,21 @@ func TestOperateToAllHosts(t *testing.T) {
 	})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
+	}
+
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	err = OperateToAllHosts(ctx, DummyCommunicator{}, hs, 2, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
+		select {
+		case <-ctx.Done():
+			agree <- false
+		case <-time.After(20 * time.Millisecond):
+			agree <- true
+		}
+	})
+	if err == nil {
+		t.Errorf("expected failure but succeed")
+	} else if err.Error() != "need least 2 hosts agree but only 0 hosts agreed" {
+		t.Errorf("unexpected error: %s", err)
 	}
 }
 
