@@ -234,6 +234,7 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 	} else {
 		log.Printf("candidate[%d]: promoted to leader", msg.Term.ID)
 		m.PromoteFailures = 0
+		m.stable = true
 
 		m.Lock()
 		m.term = msg.Term

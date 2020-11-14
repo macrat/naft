@@ -32,6 +32,10 @@ func (dc DummyCommunicator) RequestVoteTo(target *Host, l RequestVoteMessage) er
 	return dc.test(target)
 }
 
+func (dc DummyCommunicator) AppendLog(payloads []interface{}) error {
+	return fmt.Errorf("not implemented")
+}
+
 func TestOperateToAllHosts(t *testing.T) {
 	hs := MakeHosts("http://localhost:5000", "http://localhost:5001", "http://localhost:5002", "http://localhost:5003")
 

@@ -52,6 +52,7 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 
 	c.mux.HandleFunc("/log", c.getLog).Methods("GET")
 	c.mux.HandleFunc("/log", c.getLogSince).Methods("GET").Queries("from", "{from}")
+	c.mux.HandleFunc("/log", c.postLog).Methods("POST")
 	c.mux.HandleFunc("/log/head", c.getHead).Methods("GET")
 	c.mux.HandleFunc("/log/head", c.onAppendLog).Methods("POST")
 	c.mux.HandleFunc("/log/index", c.getIndex).Methods("GET")
@@ -114,9 +115,11 @@ func (h *HTTPCommunicator) getTerm(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.Encode(struct {
 		IsLeader bool `json:"is_leader"`
+		IsStable bool `json:"is_stable"`
 		Term     Term `json:"term"`
 	}{
 		IsLeader: h.manager.IsLeader(),
+		IsStable: h.manager.IsStable(),
 		Term:     h.manager.CurrentTerm(),
 	})
 }
@@ -157,6 +160,38 @@ func (h *HTTPCommunicator) getLogSince(w http.ResponseWriter, r *http.Request) {
 
 	enc := json.NewEncoder(w)
 	enc.Encode(entries)
+}
+
+func (h *HTTPCommunicator) postLog(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
+	if !h.manager.IsStable() {
+		http.Error(w, "cluster is not stable yet", http.StatusServiceUnavailable)
+		return
+	}
+	if !h.manager.IsLeader() {
+		u, err := h.manager.Leader().URL("/log")
+		if err != nil {
+			http.Error(w, "failed to resolve leader address", http.StatusInternalServerError)
+		} else {
+			http.Redirect(w, r, u, http.StatusTemporaryRedirect)
+		}
+		return
+	}
+
+	var payloads []interface{}
+	dec := json.NewDecoder(r.Body)
+	if err := dec.Decode(&payloads); err != nil {
+		log.Printf("post-log: failed to decode request body: %s", err)
+		http.Error(w, "invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if h.manager.AppendLog(h, payloads) != nil {
+		http.Error(w, "failed to append log", http.StatusInternalServerError)
+	} else {
+		w.WriteHeader(http.StatusNoContent)
+	}
 }
 
 func (h *HTTPCommunicator) getLogEntry(w http.ResponseWriter, r *http.Request) {
@@ -257,6 +292,14 @@ func (h *HTTPCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
 
 func (h *HTTPCommunicator) RequestVoteTo(target *Host, r RequestVoteMessage) error {
 	return h.send(target, "/cluster/term", r)
+}
+
+func (h *HTTPCommunicator) AppendLog(payloads []interface{}) error {
+	leader := h.manager.Leader()
+	if leader == nil {
+		return fmt.Errorf("leader is not determined")
+	}
+	return h.send(leader, "/log", payloads)
 }
 
 func (h *HTTPCommunicator) Head() (hash Hash, err error) {

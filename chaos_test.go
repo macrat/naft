@@ -201,6 +201,10 @@ func (c InProcessCommunicator) RequestVoteTo(target *Host, r RequestVoteMessage)
 	}
 }
 
+func (c InProcessCommunicator) AppendLog(payloads []interface{}) error {
+	return c.Playground.AppendLog(payloads)
+}
+
 func TestChaosRunning(t *testing.T) {
 	hosts := make([]*Host, 10)
 	for i := range hosts {

@@ -27,6 +27,7 @@ type LogReader interface {
 type MessageSender interface {
 	AppendLogTo(target *Host, l AppendLogMessage) error
 	RequestVoteTo(target *Host, r RequestVoteMessage) error
+	AppendLog(payloads []interface{}) error
 }
 
 type Communicator interface {
