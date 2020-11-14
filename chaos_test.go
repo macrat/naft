@@ -63,7 +63,7 @@ func (p *InProcessPlayground) StartHost(baseContext context.Context, h *Host) {
 	}
 	p.Communicators[h] = com
 
-	go com.Manager.Manage(ctx, com)
+	go com.Manager.Run(ctx, com)
 }
 
 func (p *InProcessPlayground) StartAllHosts(baseContext context.Context) {

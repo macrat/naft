@@ -20,7 +20,7 @@ func main() {
 	man := NewSimpleManager(self, hosts, store)
 	com := NewHTTPCommunicator(man, &http.Client{}, store)
 
-	go man.Manage(context.Background(), com)
+	go man.Run(context.Background(), com)
 
 	log.Printf("listen on %s", self.Host)
 	log.Fatal(http.ListenAndServe(self.Host, com))

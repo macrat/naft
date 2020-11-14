@@ -263,7 +263,7 @@ func (m *SimpleManager) waitForLeaderExpire(ctx context.Context) {
 	}
 }
 
-func (m *SimpleManager) Manage(ctx context.Context, c Communicator) {
+func (m *SimpleManager) Run(ctx context.Context, c Communicator) {
 	for {
 		select {
 		case <-ctx.Done():

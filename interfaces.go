@@ -13,7 +13,7 @@ type Manager interface {
 	OnRequestVote(c Communicator, r RequestVoteMessage) error
 	OnAppendLog(c Communicator, l AppendLogMessage) error
 	AppendLog(c Communicator, payloads []interface{}) error
-	Manage(ctx context.Context, c Communicator)
+	Run(ctx context.Context, c Communicator)
 }
 
 type LogReader interface {
