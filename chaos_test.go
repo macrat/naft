@@ -42,7 +42,7 @@ func NewInProcessPlayground(hosts []*Host, generator func(*Host) (LogStore, Mana
 	return ps
 }
 
-func (p *InProcessPlayground) StartHost(baseContext context.Context, h *Host) {
+func (p *InProcessPlayground) StartHost(baseContext context.Context, h *Host, restartDelay time.Duration) {
 	p.Lock()
 	defer p.Unlock()
 
@@ -50,6 +50,11 @@ func (p *InProcessPlayground) StartHost(baseContext context.Context, h *Host) {
 		idx, _ := p.Communicators[h].Log.Index()
 		log.Printf("---------- killed host head index: %d ----------", idx)
 		c()
+		select {
+		case <-time.After(restartDelay):
+		case <-baseContext.Done():
+			return
+		}
 	}
 
 	ctx, cancel := context.WithCancel(baseContext)
@@ -68,18 +73,18 @@ func (p *InProcessPlayground) StartHost(baseContext context.Context, h *Host) {
 
 func (p *InProcessPlayground) StartAllHosts(baseContext context.Context) {
 	for _, h := range p.Hosts {
-		p.StartHost(baseContext, h)
+		p.StartHost(baseContext, h, 0)
 	}
 }
 
-func (p *InProcessPlayground) RandomKill(baseContext context.Context) {
+func (p *InProcessPlayground) RandomKill(baseContext context.Context, restartDelay time.Duration) {
 	h := p.Hosts[rand.Intn(len(p.Hosts))]
 
 	log.Printf("========== kill %s ==========", h)
-	p.StartHost(baseContext, h)
+	p.StartHost(baseContext, h, restartDelay)
 }
 
-func (p *InProcessPlayground) RandomKillLoop(ctx context.Context, baseContext context.Context, interval time.Duration) {
+func (p *InProcessPlayground) RandomKillLoop(ctx context.Context, baseContext context.Context, interval time.Duration, restartDelay time.Duration) {
 	log.Printf("========== start kill loop ==========")
 
 	tick := time.Tick(interval)
@@ -90,7 +95,7 @@ func (p *InProcessPlayground) RandomKillLoop(ctx context.Context, baseContext co
 			return
 		case <-tick:
 		}
-		p.RandomKill(baseContext)
+		p.RandomKill(baseContext, restartDelay)
 	}
 }
 
@@ -228,7 +233,7 @@ func TestChaosRunning(t *testing.T) {
 	short, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	playground.StartAllHosts(long)
 
-	go playground.RandomKillLoop(short, long, 50*time.Millisecond)
+	go playground.RandomKillLoop(short, long, 50*time.Millisecond, 25*time.Millisecond)
 	tickCount := playground.TickLogLoop(short, 100*time.Millisecond)
 
 	<-long.Done()
