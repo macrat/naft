@@ -118,6 +118,12 @@ func TestInMemoryLogStore(t *testing.T) {
 		t.Errorf("got unexpected head: %s", head)
 	}
 
+	if index, err := store.Index(context.Background()); err != nil {
+		t.Errorf("failed to get index: %s", err)
+	} else if index != 0 {
+		t.Errorf("got unexpected index: %d", index)
+	}
+
 	err := store.Append(context.Background(), []LogEntry{
 		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
 		{MustParseHash("c03420ac20c17a60f1e17624a9b70ea71fa2679febcedaa24d48ea0ad523da00"), "will remove"},
@@ -154,6 +160,12 @@ func TestInMemoryLogStore(t *testing.T) {
 		t.Errorf("failed to get head: %s", err)
 	} else if head != MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61") {
 		t.Errorf("got unexpected head: %s", head)
+	}
+
+	if index, err := store.Index(context.Background()); err != nil {
+		t.Errorf("failed to get index: %s", err)
+	} else if index != 3 {
+		t.Errorf("got unexpected index: %d", index)
 	}
 
 	if entry, err := store.Get(context.Background(), MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61")); err != nil {
