@@ -46,19 +46,19 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 		Log:     log,
 	}
 
-	c.mux.HandleFunc("/log/append", c.onAppendLog)
-	c.mux.HandleFunc("/request-vote", c.onRequestVote)
+	c.mux.HandleFunc("/log/append", c.onAppendLog).Methods("POST")
+	c.mux.HandleFunc("/request-vote", c.onRequestVote).Methods("POST")
 
-	c.mux.HandleFunc("/status", c.getStatus)
-	c.mux.HandleFunc("/hosts", c.getHosts)
-	c.mux.Path("/log").Queries("from", "{from}").HandlerFunc(c.getLogSince)
-	c.mux.HandleFunc("/log", c.getLog)
-	c.mux.HandleFunc("/log/{hash:[0-9a-z]{64}}", c.getLogEntry)
-	c.mux.HandleFunc("/log/head", c.getHead)
-	c.mux.HandleFunc("/log/index", c.getIndex)
+	c.mux.HandleFunc("/status", c.getStatus).Methods("GET")
+	c.mux.HandleFunc("/hosts", c.getHosts).Methods("GET")
+	c.mux.Path("/log").Queries("from", "{from}").HandlerFunc(c.getLogSince).Methods("GET")
+	c.mux.HandleFunc("/log", c.getLog).Methods("GET")
+	c.mux.HandleFunc("/log/{hash:[0-9a-z]{64}}", c.getLogEntry).Methods("GET")
+	c.mux.HandleFunc("/log/head", c.getHead).Methods("GET")
+	c.mux.HandleFunc("/log/index", c.getIndex).Methods("GET")
 
 	for _, path := range []string{"/status", "/hosts", "/log", "/log/head"} {
-		c.mux.Handle("/leader"+path, RedirectLeaderHandler{manager, path})
+		c.mux.Handle("/leader"+path, RedirectLeaderHandler{manager, path}).Methods("GET")
 	}
 
 	return &c
