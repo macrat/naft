@@ -71,6 +71,8 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 }
 
 func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	l, err := ReadAppendLogMessage(r.Body)
 	if err != nil {
 		log.Printf("append-log: %s", err)
@@ -89,6 +91,8 @@ func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+
 	req, err := ReadRequestVoteMessage(r.Body)
 	if err != nil {
 		log.Printf("request-vote: %s", err)
