@@ -253,13 +253,13 @@ func (l *InMemoryLogStore) SyncWith(ctx context.Context, r LogReader, head Hash)
 	for i := len(l.entries) - 1; i >= 0; i-- {
 		if entries, err := r.Since(ctx, l.entries[i].Hash); err == nil {
 			if err := l.appendWithoutLock(entries); err == nil {
-				log.Printf("log-store: sync download from %d for %s", i, head)
+				log.Printf("log-store: sync download from %d: new head is %s", i, head)
 				return nil
 			}
 		}
 	}
 
-	log.Printf("log-store: sync download all for %s", head)
+	log.Printf("log-store: sync download all: new head is %s", head)
 	if entries, err := r.Entries(ctx); err != nil {
 		return err
 	} else {
