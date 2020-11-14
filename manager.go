@@ -99,7 +99,7 @@ func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) erro
 	return nil
 }
 
-func (m *SimpleManager) OnLogAppend(c Communicator, l LogAppendMessage) error {
+func (m *SimpleManager) OnAppendLog(c Communicator, l AppendLogMessage) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -146,7 +146,7 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error 
 		return err
 	}
 
-	if err := m.sendLogAppend(c, entries); err != nil {
+	if err := m.sendAppendLog(c, entries); err != nil {
 		log.Printf("leader[%d]: failed to broadcast log entries", m.term.ID)
 		return err
 	}
@@ -154,7 +154,7 @@ func (m *SimpleManager) AppendLog(c Communicator, payloads []interface{}) error 
 	return nil
 }
 
-func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) error {
+func (m *SimpleManager) sendAppendLog(c Communicator, entries []LogEntry) error {
 	oldHead, err := m.Log.Head()
 	if err != nil {
 		return err
@@ -168,20 +168,20 @@ func (m *SimpleManager) sendLogAppend(c Communicator, entries []LogEntry) error 
 		}
 	}
 
-	msg := LogAppendMessage{
+	msg := AppendLogMessage{
 		Term:    m.term,
 		Entries: entries,
 		Head:    head,
 	}
 
-	err = SendLogAppendToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2, msg)
+	err = SendAppendLogToAllHosts(c, m.hostsWithoutSelf(), len(m.hosts)/2, msg)
 	if err != nil && len(entries) > 0 {
 		log.Printf("leader[%d]: failed to replicate log: %s", m.term.ID, err)
 
 		if e := m.Log.SetHead(oldHead); e != nil {
 			log.Printf("leader[%d]: failed to rollback log: %s", m.term.ID, e)
 		} else {
-			m.sendLogAppend(c, nil)
+			m.sendAppendLog(c, nil)
 		}
 	}
 	return err
@@ -273,7 +273,7 @@ func (m *SimpleManager) Manage(ctx context.Context, c Communicator) {
 
 		if m.IsLeader() {
 			m.Lock()
-			m.sendLogAppend(c, nil)
+			m.sendAppendLog(c, nil)
 			m.Unlock()
 			select {
 			case <-ctx.Done():

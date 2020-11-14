@@ -185,11 +185,11 @@ func (c InProcessCommunicator) Entries() ([]LogEntry, error) {
 	}
 }
 
-func (c InProcessCommunicator) SendLogAppend(target *Host, l LogAppendMessage) error {
+func (c InProcessCommunicator) SendAppendLog(target *Host, l AppendLogMessage) error {
 	if t, ok := c.Playground.Communicators[target]; !ok {
 		return fmt.Errorf("no such target: %s", target)
 	} else {
-		return t.Manager.OnLogAppend(c, l)
+		return t.Manager.OnAppendLog(c, l)
 	}
 }
 

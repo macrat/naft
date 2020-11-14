@@ -46,7 +46,7 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 		Log:     log,
 	}
 
-	c.mux.HandleFunc("/log/append", c.onLogAppend)
+	c.mux.HandleFunc("/log/append", c.onAppendLog)
 	c.mux.HandleFunc("/request-vote", c.onRequestVote)
 
 	c.mux.HandleFunc("/status", c.getStatus)
@@ -64,18 +64,18 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 	return &c
 }
 
-func (h *HTTPCommunicator) onLogAppend(w http.ResponseWriter, r *http.Request) {
-	l, err := ReadLogAppendMessage(r.Body)
+func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
+	l, err := ReadAppendLogMessage(r.Body)
 	if err != nil {
-		log.Printf("log-append: %s", err)
+		log.Printf("append-log: %s", err)
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
 
-	err = h.manager.OnLogAppend(h, l)
+	err = h.manager.OnAppendLog(h, l)
 
 	if err != nil {
-		log.Printf("log-append: %s: %s", l.Term, err)
+		log.Printf("append-log: %s: %s", l.Term, err)
 		http.Error(w, err.Error(), http.StatusConflict)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
@@ -241,7 +241,7 @@ func (h *HTTPCommunicator) getByLeader(path string, buf interface{}) error {
 	return dec.Decode(buf)
 }
 
-func (h *HTTPCommunicator) SendLogAppend(target *Host, l LogAppendMessage) error {
+func (h *HTTPCommunicator) SendAppendLog(target *Host, l AppendLogMessage) error {
 	return h.send(target, "/log/append", l)
 }
 
@@ -309,9 +309,9 @@ func OperateToAllHosts(m MessageSender, targets []*Host, needAgrees int, fun fun
 	return <-errch
 }
 
-func SendLogAppendToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg LogAppendMessage) error {
+func SendAppendLogToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg AppendLogMessage) error {
 	return OperateToAllHosts(m, targets, needAgrees, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendLogAppend(h, msg) == nil
+		agree <- m.SendAppendLog(h, msg) == nil
 	})
 }
 

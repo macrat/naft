@@ -24,7 +24,7 @@ func (dc DummyCommunicator) test(target *Host) error {
 	return fmt.Errorf("%s is not listed in allows", target)
 }
 
-func (dc DummyCommunicator) SendLogAppend(target *Host, l LogAppendMessage) error {
+func (dc DummyCommunicator) SendAppendLog(target *Host, l AppendLogMessage) error {
 	return dc.test(target)
 }
 
@@ -43,7 +43,7 @@ func TestOperateToAllHosts(t *testing.T) {
 	}
 
 	err = OperateToAllHosts(DummyCommunicator(hs[:1]), hs, 4, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendLogAppend(h, LogAppendMessage{}) == nil
+		agree <- m.SendAppendLog(h, AppendLogMessage{}) == nil
 	})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
@@ -52,7 +52,7 @@ func TestOperateToAllHosts(t *testing.T) {
 	}
 
 	err = OperateToAllHosts(DummyCommunicator(hs[:2]), hs, 3, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendLogAppend(h, LogAppendMessage{}) == nil
+		agree <- m.SendAppendLog(h, AppendLogMessage{}) == nil
 	})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
@@ -61,14 +61,14 @@ func TestOperateToAllHosts(t *testing.T) {
 	}
 
 	err = OperateToAllHosts(DummyCommunicator(hs[:2]), hs, 2, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendLogAppend(h, LogAppendMessage{}) == nil
+		agree <- m.SendAppendLog(h, AppendLogMessage{}) == nil
 	})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
 	err = OperateToAllHosts(DummyCommunicator(hs[:2]), []*Host{}, 2, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendLogAppend(h, LogAppendMessage{}) == nil
+		agree <- m.SendAppendLog(h, AppendLogMessage{}) == nil
 	})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
@@ -79,12 +79,12 @@ func TestSendAppendToAllHosts(t *testing.T) {
 	hs := MakeHosts("http://localhost:5000", "http://localhost:5001", "http://localhost:5002", "http://localhost:5003")
 	dc := DummyCommunicator(hs[:2])
 
-	err := SendLogAppendToAllHosts(dc, hs, 2, LogAppendMessage{})
+	err := SendAppendLogToAllHosts(dc, hs, 2, AppendLogMessage{})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
-	err = SendLogAppendToAllHosts(dc, hs, 3, LogAppendMessage{})
+	err = SendAppendLogToAllHosts(dc, hs, 3, AppendLogMessage{})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
 	} else if err.Error() != "need least 3 hosts agree but only 2 hosts agreed" {

@@ -18,13 +18,13 @@ func ReadVoteRequestMessage(r io.Reader) (v VoteRequestMessage, err error) {
 	return
 }
 
-type LogAppendMessage struct {
+type AppendLogMessage struct {
 	Term    Term       `json:"term"`
 	Entries []LogEntry `json:"entries"`
 	Head    Hash       `json:"head"`
 }
 
-func ReadLogAppendMessage(r io.Reader) (l LogAppendMessage, err error) {
+func ReadAppendLogMessage(r io.Reader) (l AppendLogMessage, err error) {
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&l)
 
