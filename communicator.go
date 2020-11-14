@@ -46,18 +46,24 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 		Log:     log,
 	}
 
-	c.mux.HandleFunc("/log/append", c.onAppendLog).Methods("POST")
-	c.mux.HandleFunc("/request-vote", c.onRequestVote).Methods("POST")
+	c.mux.HandleFunc("/cluster/members", c.getHosts).Methods("GET")
+	c.mux.HandleFunc("/cluster/term", c.getTerm).Methods("GET")
+	c.mux.HandleFunc("/cluster/term", c.onRequestVote).Methods("POST")
 
-	c.mux.HandleFunc("/status", c.getStatus).Methods("GET")
-	c.mux.HandleFunc("/hosts", c.getHosts).Methods("GET")
-	c.mux.Path("/log").Queries("from", "{from}").HandlerFunc(c.getLogSince).Methods("GET")
 	c.mux.HandleFunc("/log", c.getLog).Methods("GET")
-	c.mux.HandleFunc("/log/{hash:[0-9a-z]{64}}", c.getLogEntry).Methods("GET")
+	c.mux.HandleFunc("/log", c.getLogSince).Methods("GET").Queries("from", "{from}")
 	c.mux.HandleFunc("/log/head", c.getHead).Methods("GET")
+	c.mux.HandleFunc("/log/head", c.onAppendLog).Methods("POST")
 	c.mux.HandleFunc("/log/index", c.getIndex).Methods("GET")
+	c.mux.HandleFunc("/log/{hash:[0-9a-z]{64}}", c.getLogEntry).Methods("GET")
 
-	for _, path := range []string{"/status", "/hosts", "/log", "/log/head"} {
+	for _, path := range []string{
+		"/cluster/members",
+		"/cluster/term",
+		"/log",
+		"/log/head",
+		"/log/index",
+	} {
 		c.mux.Handle("/leader"+path, RedirectLeaderHandler{manager, path}).Methods("GET")
 	}
 
@@ -100,7 +106,7 @@ func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request)
 	}
 }
 
-func (h *HTTPCommunicator) getStatus(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPCommunicator) getTerm(w http.ResponseWriter, r *http.Request) {
 	enc := json.NewEncoder(w)
 	enc.Encode(struct {
 		IsLeader bool `json:"is_leader"`
@@ -242,11 +248,11 @@ func (h *HTTPCommunicator) getByLeader(path string, buf interface{}) error {
 }
 
 func (h *HTTPCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
-	return h.send(target, "/log/append", l)
+	return h.send(target, "/log/head", l)
 }
 
 func (h *HTTPCommunicator) RequestVoteTo(target *Host, r RequestVoteMessage) error {
-	return h.send(target, "/request-vote", r)
+	return h.send(target, "/cluster/term", r)
 }
 
 func (h *HTTPCommunicator) Head() (hash Hash, err error) {
