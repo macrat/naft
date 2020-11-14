@@ -24,11 +24,11 @@ func (dc DummyCommunicator) test(target *Host) error {
 	return fmt.Errorf("%s is not listed in allows", target)
 }
 
-func (dc DummyCommunicator) SendAppendLog(target *Host, l AppendLogMessage) error {
+func (dc DummyCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
 	return dc.test(target)
 }
 
-func (dc DummyCommunicator) SendRequestVote(target *Host, l VoteRequestMessage) error {
+func (dc DummyCommunicator) RequestVoteTo(target *Host, l VoteRequestMessage) error {
 	return dc.test(target)
 }
 
@@ -43,7 +43,7 @@ func TestOperateToAllHosts(t *testing.T) {
 	}
 
 	err = OperateToAllHosts(DummyCommunicator(hs[:1]), hs, 4, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendAppendLog(h, AppendLogMessage{}) == nil
+		agree <- m.AppendLogTo(h, AppendLogMessage{}) == nil
 	})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
@@ -52,7 +52,7 @@ func TestOperateToAllHosts(t *testing.T) {
 	}
 
 	err = OperateToAllHosts(DummyCommunicator(hs[:2]), hs, 3, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendAppendLog(h, AppendLogMessage{}) == nil
+		agree <- m.AppendLogTo(h, AppendLogMessage{}) == nil
 	})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
@@ -61,14 +61,14 @@ func TestOperateToAllHosts(t *testing.T) {
 	}
 
 	err = OperateToAllHosts(DummyCommunicator(hs[:2]), hs, 2, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendAppendLog(h, AppendLogMessage{}) == nil
+		agree <- m.AppendLogTo(h, AppendLogMessage{}) == nil
 	})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
 	err = OperateToAllHosts(DummyCommunicator(hs[:2]), []*Host{}, 2, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendAppendLog(h, AppendLogMessage{}) == nil
+		agree <- m.AppendLogTo(h, AppendLogMessage{}) == nil
 	})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)

@@ -185,7 +185,7 @@ func (c InProcessCommunicator) Entries() ([]LogEntry, error) {
 	}
 }
 
-func (c InProcessCommunicator) SendAppendLog(target *Host, l AppendLogMessage) error {
+func (c InProcessCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
 	if t, ok := c.Playground.Communicators[target]; !ok {
 		return fmt.Errorf("no such target: %s", target)
 	} else {
@@ -193,7 +193,7 @@ func (c InProcessCommunicator) SendAppendLog(target *Host, l AppendLogMessage) e
 	}
 }
 
-func (c InProcessCommunicator) SendRequestVote(target *Host, r VoteRequestMessage) error {
+func (c InProcessCommunicator) RequestVoteTo(target *Host, r VoteRequestMessage) error {
 	if t, ok := c.Playground.Communicators[target]; !ok {
 		return fmt.Errorf("no such target: %s", target)
 	} else {

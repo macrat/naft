@@ -241,11 +241,11 @@ func (h *HTTPCommunicator) getByLeader(path string, buf interface{}) error {
 	return dec.Decode(buf)
 }
 
-func (h *HTTPCommunicator) SendAppendLog(target *Host, l AppendLogMessage) error {
+func (h *HTTPCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
 	return h.send(target, "/log/append", l)
 }
 
-func (h *HTTPCommunicator) SendRequestVote(target *Host, r VoteRequestMessage) error {
+func (h *HTTPCommunicator) RequestVoteTo(target *Host, r VoteRequestMessage) error {
 	return h.send(target, "/request-vote", r)
 }
 
@@ -311,12 +311,12 @@ func OperateToAllHosts(m MessageSender, targets []*Host, needAgrees int, fun fun
 
 func SendAppendLogToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg AppendLogMessage) error {
 	return OperateToAllHosts(m, targets, needAgrees, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendAppendLog(h, msg) == nil
+		agree <- m.AppendLogTo(h, msg) == nil
 	})
 }
 
 func SendRequestVoteToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg VoteRequestMessage) error {
 	return OperateToAllHosts(m, targets, needAgrees, func(m MessageSender, h *Host, agree chan bool) {
-		agree <- m.SendRequestVote(h, msg) == nil
+		agree <- m.RequestVoteTo(h, msg) == nil
 	})
 }

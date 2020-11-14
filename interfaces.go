@@ -25,8 +25,8 @@ type LogReader interface {
 }
 
 type MessageSender interface {
-	SendAppendLog(target *Host, l AppendLogMessage) error
-	SendRequestVote(target *Host, r VoteRequestMessage) error
+	AppendLogTo(target *Host, l AppendLogMessage) error
+	RequestVoteTo(target *Host, r VoteRequestMessage) error
 }
 
 type Communicator interface {
