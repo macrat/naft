@@ -250,7 +250,7 @@ func (m *SimpleManager) sendRequestVote(ctx context.Context, c Communicator) err
 }
 
 func (m *SimpleManager) waitForLeaderExpire(ctx context.Context) {
-	wait := m.WaitMin + (time.Duration)(rand.Int63n((int64)(m.WaitRand) * (int64)(m.PromoteFailures + 1)))
+	wait := m.WaitMin + (time.Duration)(rand.Int63n((int64)(m.WaitRand)*(int64)(m.PromoteFailures+1)))
 
 	expire := m.leaderExpire.Sub(time.Now())
 	if expire < 0 {
