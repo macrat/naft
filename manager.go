@@ -67,7 +67,7 @@ func (m *SimpleManager) hostsWithoutSelf() []*Host {
 	return result
 }
 
-func (m *SimpleManager) OnRequestVote(c Communicator, r VoteRequestMessage) error {
+func (m *SimpleManager) OnRequestVote(c Communicator, r RequestVoteMessage) error {
 	m.Lock()
 	defer m.Unlock()
 
@@ -211,7 +211,7 @@ func (m *SimpleManager) sendRequestVote(c Communicator) error {
 
 	m.Lock()
 	m.term.Leader = nil
-	msg := VoteRequestMessage{
+	msg := RequestVoteMessage{
 		Term: Term{
 			Leader: m.self,
 			ID:     m.term.ID + 1,

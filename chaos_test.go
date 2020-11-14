@@ -193,7 +193,7 @@ func (c InProcessCommunicator) AppendLogTo(target *Host, l AppendLogMessage) err
 	}
 }
 
-func (c InProcessCommunicator) RequestVoteTo(target *Host, r VoteRequestMessage) error {
+func (c InProcessCommunicator) RequestVoteTo(target *Host, r RequestVoteMessage) error {
 	if t, ok := c.Playground.Communicators[target]; !ok {
 		return fmt.Errorf("no such target: %s", target)
 	} else {

@@ -10,7 +10,7 @@ type Manager interface {
 	IsStable() bool
 	CurrentTerm() Term
 	Hosts() []*Host
-	OnRequestVote(c Communicator, r VoteRequestMessage) error
+	OnRequestVote(c Communicator, r RequestVoteMessage) error
 	OnAppendLog(c Communicator, l AppendLogMessage) error
 	AppendLog(c Communicator, payloads []interface{}) error
 	Manage(ctx context.Context, c Communicator)
@@ -26,7 +26,7 @@ type LogReader interface {
 
 type MessageSender interface {
 	AppendLogTo(target *Host, l AppendLogMessage) error
-	RequestVoteTo(target *Host, r VoteRequestMessage) error
+	RequestVoteTo(target *Host, r RequestVoteMessage) error
 }
 
 type Communicator interface {

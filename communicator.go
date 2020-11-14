@@ -83,7 +83,7 @@ func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request) {
-	req, err := ReadVoteRequestMessage(r.Body)
+	req, err := ReadRequestVoteMessage(r.Body)
 	if err != nil {
 		log.Printf("request-vote: %s", err)
 		http.Error(w, "invalid request", http.StatusBadRequest)
@@ -245,7 +245,7 @@ func (h *HTTPCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error {
 	return h.send(target, "/log/append", l)
 }
 
-func (h *HTTPCommunicator) RequestVoteTo(target *Host, r VoteRequestMessage) error {
+func (h *HTTPCommunicator) RequestVoteTo(target *Host, r RequestVoteMessage) error {
 	return h.send(target, "/request-vote", r)
 }
 
@@ -315,7 +315,7 @@ func SendAppendLogToAllHosts(m MessageSender, targets []*Host, needAgrees int, m
 	})
 }
 
-func SendRequestVoteToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg VoteRequestMessage) error {
+func SendRequestVoteToAllHosts(m MessageSender, targets []*Host, needAgrees int, msg RequestVoteMessage) error {
 	return OperateToAllHosts(m, targets, needAgrees, func(m MessageSender, h *Host, agree chan bool) {
 		agree <- m.RequestVoteTo(h, msg) == nil
 	})

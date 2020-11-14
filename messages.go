@@ -5,13 +5,13 @@ import (
 	"io"
 )
 
-type VoteRequestMessage struct {
+type RequestVoteMessage struct {
 	Term  Term `json:"term"`
 	Index int  `json:"index"`
 	Head  Hash `json:"head"`
 }
 
-func ReadVoteRequestMessage(r io.Reader) (v VoteRequestMessage, err error) {
+func ReadRequestVoteMessage(r io.Reader) (v RequestVoteMessage, err error) {
 	dec := json.NewDecoder(r)
 	err = dec.Decode(&v)
 

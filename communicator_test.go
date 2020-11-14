@@ -28,7 +28,7 @@ func (dc DummyCommunicator) AppendLogTo(target *Host, l AppendLogMessage) error 
 	return dc.test(target)
 }
 
-func (dc DummyCommunicator) RequestVoteTo(target *Host, l VoteRequestMessage) error {
+func (dc DummyCommunicator) RequestVoteTo(target *Host, l RequestVoteMessage) error {
 	return dc.test(target)
 }
 
@@ -96,12 +96,12 @@ func TestRequestVoteToAllHosts(t *testing.T) {
 	hs := MakeHosts("http://localhost:5000", "http://localhost:5001", "http://localhost:5002", "http://localhost:5003")
 	dc := DummyCommunicator(hs[:2])
 
-	err := SendRequestVoteToAllHosts(dc, hs, 2, VoteRequestMessage{})
+	err := SendRequestVoteToAllHosts(dc, hs, 2, RequestVoteMessage{})
 	if err != nil {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
-	err = SendRequestVoteToAllHosts(dc, hs, 3, VoteRequestMessage{})
+	err = SendRequestVoteToAllHosts(dc, hs, 3, RequestVoteMessage{})
 	if err == nil {
 		t.Errorf("expected failure but succeed")
 	} else if err.Error() != "need least 3 hosts agree but only 2 hosts agreed" {
