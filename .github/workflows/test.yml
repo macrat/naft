@@ -20,10 +20,19 @@ jobs:
       - run: go test ./... -tags=chaos -v
 
   vet:
-    name: Vet
+    name: Static
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/setup-go@v1
+      - uses: actions/checkout@v2
+      - name: go fmt
+        uses: grandcolline/golang-github-actions@v1
         with:
-          go-version: 1.15
-      - run: go vet
+          run: fmt
+      - name: go vet
+        uses: grandcolline/golang-github-actions@v1
+        with:
+          run: vet
+      - name: check imports
+        uses: grandcolline/golang-github-actions@v1
+        with:
+          run: imports
