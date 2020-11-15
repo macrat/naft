@@ -187,7 +187,7 @@ func (h *HTTPCommunicator) postLog(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !h.manager.IsLeader() {
-		u, err := h.manager.Leader().URL("/log")
+		u, err := h.manager.Leader().URL("log")
 		if err != nil {
 			http.Error(w, "failed to resolve leader address", http.StatusInternalServerError)
 		} else {
@@ -320,11 +320,11 @@ func (h *HTTPCommunicator) getByLeader(ctx context.Context, path string, buf int
 }
 
 func (h *HTTPCommunicator) AppendLogTo(ctx context.Context, target *Host, l AppendLogMessage) error {
-	return h.send(ctx, target, "/log/head", l)
+	return h.send(ctx, target, "log/head", l)
 }
 
 func (h *HTTPCommunicator) RequestVoteTo(ctx context.Context, target *Host, r RequestVoteMessage) error {
-	return h.send(ctx, target, "/cluster/term", r)
+	return h.send(ctx, target, "cluster/term", r)
 }
 
 func (h *HTTPCommunicator) AppendLog(ctx context.Context, payloads []interface{}) error {
@@ -332,31 +332,31 @@ func (h *HTTPCommunicator) AppendLog(ctx context.Context, payloads []interface{}
 	if leader == nil {
 		return fmt.Errorf("leader is not determined")
 	}
-	return h.send(ctx, leader, "/log", payloads)
+	return h.send(ctx, leader, "log", payloads)
 }
 
 func (h *HTTPCommunicator) Head(ctx context.Context) (hash Hash, err error) {
-	err = h.getByLeader(ctx, fmt.Sprintf("/log/head"), &hash)
+	err = h.getByLeader(ctx, fmt.Sprintf("log/head"), &hash)
 	return
 }
 
 func (h *HTTPCommunicator) Index(ctx context.Context) (index int, err error) {
-	err = h.getByLeader(ctx, fmt.Sprintf("/log/index"), &index)
+	err = h.getByLeader(ctx, fmt.Sprintf("log/index"), &index)
 	return
 }
 
 func (h *HTTPCommunicator) Get(ctx context.Context, hash Hash) (e LogEntry, err error) {
-	err = h.getByLeader(ctx, fmt.Sprintf("/log/%s", hash), &e)
+	err = h.getByLeader(ctx, fmt.Sprintf("log/%s", hash), &e)
 	return
 }
 
 func (h *HTTPCommunicator) Since(ctx context.Context, hash Hash) (es []LogEntry, err error) {
-	err = h.getByLeader(ctx, fmt.Sprintf("/log?from=%s", hash), &es)
+	err = h.getByLeader(ctx, fmt.Sprintf("log?from=%s", hash), &es)
 	return
 }
 
 func (h *HTTPCommunicator) Entries(ctx context.Context) (es []LogEntry, err error) {
-	err = h.getByLeader(ctx, fmt.Sprintf("/log"), &es)
+	err = h.getByLeader(ctx, fmt.Sprintf("log"), &es)
 	return
 }
 
