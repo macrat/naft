@@ -80,7 +80,8 @@ func TestOperateToAllHosts(t *testing.T) {
 		t.Errorf("expected success but got error: %s", err)
 	}
 
-	ctx, _ := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Millisecond)
+	defer cancel()
 	err = OperateToAllHosts(ctx, DummyCommunicator{}, hs, 2, func(ctx context.Context, m MessageSender, h *Host, agree chan bool) {
 		select {
 		case <-ctx.Done():

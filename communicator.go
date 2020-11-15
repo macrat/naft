@@ -77,8 +77,14 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 	return &c
 }
 
+func (h *HTTPCommunicator) makeOperationContext() (context.Context, context.CancelFunc) {
+	ctx, cancel := context.WithTimeout(context.Background(), h.OperationTimeout)
+	return ctx, cancel
+}
+
 func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
-	ctx := h.makeOperationContext()
+	ctx, cancel := h.makeOperationContext()
+	defer cancel()
 	defer r.Body.Close()
 
 	l, err := ReadAppendLogMessage(r.Body)
@@ -99,7 +105,8 @@ func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request) {
-	ctx := h.makeOperationContext()
+	ctx, cancel := h.makeOperationContext()
+	defer cancel()
 	defer r.Body.Close()
 
 	req, err := ReadRequestVoteMessage(r.Body)
@@ -117,11 +124,6 @@ func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
 	}
-}
-
-func (h *HTTPCommunicator) makeOperationContext() context.Context {
-	ctx, _ := context.WithTimeout(context.Background(), h.OperationTimeout)
-	return ctx
 }
 
 func (h *HTTPCommunicator) getTerm(w http.ResponseWriter, r *http.Request) {
@@ -143,7 +145,8 @@ func (h *HTTPCommunicator) getHosts(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getLog(w http.ResponseWriter, r *http.Request) {
-	ctx := h.makeOperationContext()
+	ctx, cancel := h.makeOperationContext()
+	defer cancel()
 
 	if es, err := h.Log.Entries(ctx); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -154,7 +157,8 @@ func (h *HTTPCommunicator) getLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getLogSince(w http.ResponseWriter, r *http.Request) {
-	ctx := h.makeOperationContext()
+	ctx, cancel := h.makeOperationContext()
+	defer cancel()
 	raw := mux.Vars(r)["from"]
 
 	if raw == "" {
@@ -179,7 +183,8 @@ func (h *HTTPCommunicator) getLogSince(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) postLog(w http.ResponseWriter, r *http.Request) {
-	ctx := h.makeOperationContext()
+	ctx, cancel := h.makeOperationContext()
+	defer cancel()
 	defer r.Body.Close()
 
 	if !h.manager.IsStable() {
@@ -212,7 +217,8 @@ func (h *HTTPCommunicator) postLog(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getLogEntry(w http.ResponseWriter, r *http.Request) {
-	ctx := h.makeOperationContext()
+	ctx, cancel := h.makeOperationContext()
+	defer cancel()
 	vars := mux.Vars(r)
 
 	hash, err := ParseHash(vars["hash"])
@@ -232,7 +238,8 @@ func (h *HTTPCommunicator) getLogEntry(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getHead(w http.ResponseWriter, r *http.Request) {
-	ctx := h.makeOperationContext()
+	ctx, cancel := h.makeOperationContext()
+	defer cancel()
 
 	if hash, err := h.Log.Head(ctx); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
@@ -243,7 +250,8 @@ func (h *HTTPCommunicator) getHead(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *HTTPCommunicator) getIndex(w http.ResponseWriter, r *http.Request) {
-	ctx := h.makeOperationContext()
+	ctx, cancel := h.makeOperationContext()
+	defer cancel()
 
 	if index, err := h.Log.Index(ctx); err != nil {
 		http.Error(w, "internal server error", http.StatusInternalServerError)
