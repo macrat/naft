@@ -39,7 +39,7 @@ type HTTPCommunicator struct {
 	Client           *http.Client
 	Log              LogStore
 	OperationTimeout time.Duration
-	Logger           logging.Logger
+	logger           logging.Logger
 }
 
 func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HTTPCommunicator {
@@ -49,7 +49,7 @@ func NewHTTPCommunicator(manager Manager, client *http.Client, log LogStore) *HT
 		Client:           client,
 		Log:              log,
 		OperationTimeout: 100 * time.Millisecond,
-		Logger:           logging.DefaultLogger,
+		logger:           logging.DefaultLogger,
 	}
 
 	c.mux.HandleFunc("/cluster/members", c.getHosts).Methods("GET")
@@ -83,7 +83,7 @@ func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
 
 	l, err := ReadAppendLogMessage(r.Body)
 	if err != nil {
-		h.Logger.Infof("append-log: %s", err)
+		h.logger.Infof("append-log: %s", err)
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
@@ -91,7 +91,7 @@ func (h *HTTPCommunicator) onAppendLog(w http.ResponseWriter, r *http.Request) {
 	err = h.manager.OnAppendLog(ctx, h, l)
 
 	if err != nil {
-		h.Logger.Infof("append-log: %s: %s", l.Term, err)
+		h.logger.Infof("append-log: %s: %s", l.Term, err)
 		http.Error(w, err.Error(), http.StatusConflict)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
@@ -104,7 +104,7 @@ func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request)
 
 	req, err := ReadRequestVoteMessage(r.Body)
 	if err != nil {
-		h.Logger.Infof("request-vote: %s", err)
+		h.logger.Infof("request-vote: %s", err)
 		http.Error(w, "invalid request", http.StatusBadRequest)
 		return
 	}
@@ -112,7 +112,7 @@ func (h *HTTPCommunicator) onRequestVote(w http.ResponseWriter, r *http.Request)
 	err = h.manager.OnRequestVote(ctx, h, req)
 
 	if err != nil {
-		h.Logger.Infof("request-vote: %s: %s", req.Term, err)
+		h.logger.Infof("request-vote: %s: %s", req.Term, err)
 		http.Error(w, err.Error(), http.StatusConflict)
 	} else {
 		w.WriteHeader(http.StatusNoContent)
@@ -199,7 +199,7 @@ func (h *HTTPCommunicator) postLog(w http.ResponseWriter, r *http.Request) {
 	var payloads []interface{}
 	dec := json.NewDecoder(r.Body)
 	if err := dec.Decode(&payloads); err != nil {
-		h.Logger.Infof("post-log: failed to decode request body: %s", err)
+		h.logger.Infof("post-log: failed to decode request body: %s", err)
 		http.Error(w, "invalid request body", http.StatusBadRequest)
 		return
 	}
@@ -369,7 +369,7 @@ func (h *HTTPCommunicator) Run(ctx context.Context) error {
 	defer close(errch)
 
 	go (func(errch chan error) {
-		h.Logger.Infof("listen on %s", h.manager.Self().Host)
+		h.logger.Infof("listen on %s", h.manager.Self().Host)
 		errch <- server.ListenAndServe()
 	})(errch)
 
@@ -380,6 +380,10 @@ func (h *HTTPCommunicator) Run(ctx context.Context) error {
 		server.Close()
 		return nil
 	}
+}
+
+func (h *HTTPCommunicator) SetLogger(l logging.Logger) {
+	h.logger = l
 }
 
 func OperateToAllHosts(ctx context.Context, m MessageSender, targets []*Host, needAgrees int, fun func(ctx context.Context, m MessageSender, target *Host, agree chan bool)) error {

@@ -261,25 +261,25 @@ func TestInMemoryLogStore_SetHead(t *testing.T) {
 
 func TestInMemoryLogStore_SyncWith(t *testing.T) {
 	store := NewInMemoryLogStore()
-	store.Logger = logging.DummyLogger{}
+	store.SetLogger(logging.DummyLogger{})
 	store.entries = []LogEntry{
 		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
 		{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
 	}
 	short := NewInMemoryLogStore()
-	short.Logger = logging.DummyLogger{}
+	short.SetLogger(logging.DummyLogger{})
 	short.entries = []LogEntry{
 		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
 	}
 	long := NewInMemoryLogStore()
-	long.Logger = logging.DummyLogger{}
+	long.SetLogger(logging.DummyLogger{})
 	long.entries = []LogEntry{
 		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
 		{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
 		{MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61"), "hogefuga"},
 	}
 	incompat := NewInMemoryLogStore()
-	incompat.Logger = logging.DummyLogger{}
+	incompat.SetLogger(logging.DummyLogger{})
 	incompat.entries = []LogEntry{
 		{MustParseHash("b69282a452333ac55eb38cc567389bb27888c677afd55232f0671e090fd65117"), "hello"},
 		{MustParseHash("4dcf693736c95f8db7ac52feb6ddbed81ff5292e6622511dc039419b81380154"), "world"},

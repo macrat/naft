@@ -223,6 +223,10 @@ func (c InProcessCommunicator) Run(_ context.Context) error {
 	return nil
 }
 
+func (c InProcessCommunicator) SetLogger(l logging.Logger) {
+	panic("not implemented")
+}
+
 func TestChaosRunning(t *testing.T) {
 	hosts := make([]*Host, 10)
 	for i := range hosts {
@@ -232,10 +236,10 @@ func TestChaosRunning(t *testing.T) {
 		hosts,
 		func(h *Host) (LogStore, Manager) {
 			l := NewInMemoryLogStore()
-			l.Logger = Logger
+			l.SetLogger(Logger)
 
 			m := NewSimpleManager(h, hosts, l)
-			m.Logger = Logger
+			m.SetLogger(Logger)
 			m.LeaderTTL = 10 * time.Millisecond
 			m.WaitMin = 1 * time.Millisecond
 			m.WaitRand = 9 * time.Millisecond

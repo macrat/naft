@@ -20,13 +20,13 @@ func main() {
 	logger := logging.NewLogger(logging.INFO)
 
 	store := NewInMemoryLogStore()
-	store.Logger = logger
+	store.SetLogger(logger)
 
 	man := NewSimpleManager(self, hosts, store)
-	man.Logger = logger
+	man.SetLogger(logger)
 
 	com := NewHTTPCommunicator(man, &http.Client{}, store)
-	com.Logger = logger
+	com.SetLogger(logger)
 
 	go man.Run(context.Background(), com)
 

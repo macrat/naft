@@ -24,7 +24,7 @@ type SimpleManager struct {
 	WaitRand          time.Duration
 	PromoteFailures   int
 	KeepAliveInterval time.Duration
-	Logger            logging.Logger
+	logger            logging.Logger
 }
 
 func NewSimpleManager(self *Host, hosts []*Host, log LogStore) *SimpleManager {
@@ -36,7 +36,7 @@ func NewSimpleManager(self *Host, hosts []*Host, log LogStore) *SimpleManager {
 		WaitMin:           500 * time.Millisecond,
 		WaitRand:          250 * time.Millisecond,
 		KeepAliveInterval: 500 * time.Millisecond,
-		Logger:            logging.DefaultLogger,
+		logger:            logging.DefaultLogger,
 	}
 }
 
@@ -97,7 +97,7 @@ func (m *SimpleManager) OnRequestVote(ctx context.Context, c Communicator, r Req
 		}
 	}
 
-	m.Logger.Infof("request-vote: change term to %s", r.Term)
+	m.logger.Infof("request-vote: change term to %s", r.Term)
 
 	m.stable = false
 	m.term = r.Term
@@ -115,7 +115,7 @@ func (m *SimpleManager) OnAppendLog(ctx context.Context, c Communicator, l Appen
 	}
 
 	if m.term.ID != l.Term.ID {
-		m.Logger.Infof("keep-alive: change term to %s", l.Term)
+		m.logger.Infof("keep-alive: change term to %s", l.Term)
 	}
 
 	m.stable = true
@@ -154,7 +154,7 @@ func (m *SimpleManager) AppendLog(ctx context.Context, c Communicator, payloads 
 	}
 
 	if err := m.sendAppendLog(ctx, c, entries); err != nil {
-		m.Logger.Warnf("leader[%d]: failed to broadcast log entries", m.term.ID)
+		m.logger.Warnf("leader[%d]: failed to broadcast log entries", m.term.ID)
 		return err
 	}
 
@@ -183,10 +183,10 @@ func (m *SimpleManager) sendAppendLog(ctx context.Context, c Communicator, entri
 
 	err = SendAppendLogToAllHosts(ctx, c, m.hostsWithoutSelf(), len(m.hosts)/2, msg)
 	if err != nil && len(entries) > 0 {
-		m.Logger.Errorf("leader[%d]: failed to replicate log: %s", m.term.ID, err)
+		m.logger.Errorf("leader[%d]: failed to replicate log: %s", m.term.ID, err)
 
 		if e := m.Log.SetHead(ctx, oldHead); e != nil {
-			m.Logger.Errorf("leader[%d]: failed to rollback log: %s", m.term.ID, e)
+			m.logger.Errorf("leader[%d]: failed to rollback log: %s", m.term.ID, e)
 		} else {
 			m.sendAppendLog(ctx, c, nil)
 		}
@@ -207,7 +207,7 @@ func getIndexAndHead(ctx context.Context, l LogStore) (index int, head Hash, err
 }
 
 func (m *SimpleManager) sendRequestVote(ctx context.Context, c Communicator) error {
-	m.Logger.Debugf("candidate[%d]: start request vote", m.term.ID+1)
+	m.logger.Debugf("candidate[%d]: start request vote", m.term.ID+1)
 
 	m.Lock()
 	index, head, err := getIndexAndHead(ctx, m.Log)
@@ -231,15 +231,15 @@ func (m *SimpleManager) sendRequestVote(ctx context.Context, c Communicator) err
 	err = SendRequestVoteToAllHosts(ctx, c, m.hostsWithoutSelf(), len(m.hosts)/2, msg)
 
 	if m.term.Leader != nil {
-		m.Logger.Debugf("candidate[%d]: cancelled", msg.Term.ID)
+		m.logger.Debugf("candidate[%d]: cancelled", msg.Term.ID)
 		return fmt.Errorf("cancelled")
 	}
 
 	if err != nil {
-		m.Logger.Debugf("candidate[%d]: failed to promote to leader: %s", msg.Term.ID, err)
+		m.logger.Debugf("candidate[%d]: failed to promote to leader: %s", msg.Term.ID, err)
 		m.PromoteFailures++
 	} else {
-		m.Logger.Infof("candidate[%d]: promoted to leader", msg.Term.ID)
+		m.logger.Infof("candidate[%d]: promoted to leader", msg.Term.ID)
 		m.PromoteFailures = 0
 		m.stable = true
 
@@ -249,7 +249,7 @@ func (m *SimpleManager) sendRequestVote(ctx context.Context, c Communicator) err
 
 		// DEBUG BEGIN
 		if err := m.AppendLog(ctx, c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, msg.Term.ID)}); err != nil {
-			m.Logger.Errorf("debug: failed to append log: %s", err)
+			m.logger.Errorf("debug: failed to append log: %s", err)
 		}
 		// DEBUG END
 	}
@@ -274,7 +274,7 @@ func (m *SimpleManager) Run(ctx context.Context, c Communicator) error {
 	for {
 		select {
 		case <-ctx.Done():
-			m.Logger.Infof("manager: stop manager on %s", m.self)
+			m.logger.Infof("manager: stop manager on %s", m.self)
 			return nil
 		default:
 		}
@@ -285,7 +285,7 @@ func (m *SimpleManager) Run(ctx context.Context, c Communicator) error {
 			m.Unlock()
 			select {
 			case <-ctx.Done():
-				m.Logger.Infof("manager: stop manager on %s", m.self)
+				m.logger.Infof("manager: stop manager on %s", m.self)
 				return nil
 			case <-time.After(m.KeepAliveInterval):
 			}
@@ -300,4 +300,8 @@ func (m *SimpleManager) Run(ctx context.Context, c Communicator) error {
 			}
 		}
 	}
+}
+
+func (m *SimpleManager) SetLogger(l logging.Logger) {
+	m.logger = l
 }

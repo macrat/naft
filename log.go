@@ -97,12 +97,12 @@ type InMemoryLogStore struct {
 	sync.RWMutex
 
 	entries []LogEntry
-	Logger  logging.Logger
+	logger  logging.Logger
 }
 
 func NewInMemoryLogStore() *InMemoryLogStore {
 	return &InMemoryLogStore{
-		Logger: logging.DefaultLogger,
+		logger: logging.DefaultLogger,
 	}
 }
 
@@ -252,7 +252,7 @@ func (l *InMemoryLogStore) SyncWith(ctx context.Context, r LogReader, head Hash)
 
 	if i := l.find(head); i >= 0 {
 		if i < len(l.entries)-1 {
-			l.Logger.Debugf("log-store: sync trim from %d for %s", i, head)
+			l.logger.Debugf("log-store: sync trim from %d for %s", i, head)
 			l.entries = l.entries[:i+1]
 		}
 		return nil
@@ -261,13 +261,13 @@ func (l *InMemoryLogStore) SyncWith(ctx context.Context, r LogReader, head Hash)
 	for i := len(l.entries) - 1; i > 0; i-- {
 		if entries, err := r.Since(ctx, l.entries[i].Hash); err == nil {
 			if err := l.appendWithoutLock(entries[1:]); err == nil {
-				l.Logger.Debugf("log-store: sync download from %d: new head is %s", i, head)
+				l.logger.Debugf("log-store: sync download from %d: new head is %s", i, head)
 				return nil
 			}
 		}
 	}
 
-	l.Logger.Debugf("log-store: sync download all: new head is %s", head)
+	l.logger.Debugf("log-store: sync download all: new head is %s", head)
 	if entries, err := r.Entries(ctx); err != nil {
 		return err
 	} else {
@@ -275,4 +275,8 @@ func (l *InMemoryLogStore) SyncWith(ctx context.Context, r LogReader, head Hash)
 	}
 
 	return nil
+}
+
+func (l *InMemoryLogStore) SetLogger(logger logging.Logger) {
+	l.logger = logger
 }

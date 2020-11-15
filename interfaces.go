@@ -2,6 +2,8 @@ package main
 
 import (
 	"context"
+
+	"github.com/macrat/naft/logging"
 )
 
 type Manager interface {
@@ -15,6 +17,7 @@ type Manager interface {
 	OnAppendLog(context.Context, Communicator, AppendLogMessage) error
 	AppendLog(ctx context.Context, c Communicator, payloads []interface{}) error
 	Run(context.Context, Communicator) error
+	SetLogger(logging.Logger)
 }
 
 type LogReader interface {
@@ -35,6 +38,7 @@ type Communicator interface {
 	LogReader
 	MessageSender
 	Run(context.Context) error
+	SetLogger(logging.Logger)
 }
 
 type LogStore interface {
@@ -44,4 +48,5 @@ type LogStore interface {
 	SetHead(ctx context.Context, h Hash) error
 	Append(ctx context.Context, es []LogEntry) error
 	SyncWith(ctx context.Context, r LogReader, head Hash) error
+	SetLogger(logging.Logger)
 }
