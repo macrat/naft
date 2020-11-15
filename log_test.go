@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"testing"
+
+	"github.com/macrat/naft/logging"
 )
 
 func TestHash(t *testing.T) {
@@ -98,7 +100,7 @@ func TestMakeLogEntries(t *testing.T) {
 }
 
 func TestInMemoryLogStore(t *testing.T) {
-	store := InMemoryLogStore{}
+	store := NewInMemoryLogStore()
 
 	if !store.IsValid(context.Background()) {
 		t.Errorf("empty log store is must be valid but not")
@@ -188,24 +190,22 @@ func TestInMemoryLogStore(t *testing.T) {
 }
 
 func TestInMemoryLogStore_IsValid_invalid(t *testing.T) {
-	first := &InMemoryLogStore{
-		entries: []LogEntry{
-			{MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0"), "hogefuga"},
-			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
-			{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
-		},
+	first := NewInMemoryLogStore()
+	first.entries = []LogEntry{
+		{MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0"), "hogefuga"},
+		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
+		{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
 	}
 
 	if first.IsValid(context.Background()) {
 		t.Errorf("must be invalid because broken hash")
 	}
 
-	last := &InMemoryLogStore{
-		entries: []LogEntry{
-			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
-			{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
-			{MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0"), "hogefuga"},
-		},
+	last := NewInMemoryLogStore()
+	last.entries = []LogEntry{
+		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
+		{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
+		{MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0"), "hogefuga"},
 	}
 
 	if last.IsValid(context.Background()) {
@@ -218,13 +218,12 @@ func TestInMemoryLogStore_SetHead(t *testing.T) {
 	next := MustParseHash("2222222222222222222222222222222222222222222222222222222222222222")
 	nosuch := MustParseHash("0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0fee10bad0")
 
-	store := &InMemoryLogStore{
-		entries: []LogEntry{
-			{MustParseHash("1111111111111111111111111111111111111111111111111111111111111111"), "1st"},
-			{next, "2nd"},
-			{MustParseHash("3333333333333333333333333333333333333333333333333333333333333333"), "3rd"},
-			{last, "4th"},
-		},
+	store := NewInMemoryLogStore()
+	store.entries = []LogEntry{
+		{MustParseHash("1111111111111111111111111111111111111111111111111111111111111111"), "1st"},
+		{next, "2nd"},
+		{MustParseHash("3333333333333333333333333333333333333333333333333333333333333333"), "3rd"},
+		{last, "4th"},
 	}
 
 	if h, err := store.Head(context.Background()); err != nil {
@@ -261,29 +260,29 @@ func TestInMemoryLogStore_SetHead(t *testing.T) {
 }
 
 func TestInMemoryLogStore_SyncWith(t *testing.T) {
-	store := &InMemoryLogStore{
-		entries: []LogEntry{
-			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
-			{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
-		},
+	store := NewInMemoryLogStore()
+	store.Logger = logging.DummyLogger{}
+	store.entries = []LogEntry{
+		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
+		{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
 	}
-	short := &InMemoryLogStore{
-		entries: []LogEntry{
-			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
-		},
+	short := NewInMemoryLogStore()
+	short.Logger = logging.DummyLogger{}
+	short.entries = []LogEntry{
+		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
 	}
-	long := &InMemoryLogStore{
-		entries: []LogEntry{
-			{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
-			{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
-			{MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61"), "hogefuga"},
-		},
+	long := NewInMemoryLogStore()
+	long.Logger = logging.DummyLogger{}
+	long.entries = []LogEntry{
+		{MustParseHash("bba93bc3de160deb29aa219d875b4ff8bba8e6bf1cfc90076427323f88657ebf"), "hello world"},
+		{MustParseHash("7d27877ded340fe46f05a1c056636b57ab2db99c98a339ba1ee4b23200ae5a22"), "foobar"},
+		{MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61"), "hogefuga"},
 	}
-	incompat := &InMemoryLogStore{
-		entries: []LogEntry{
-			{MustParseHash("b69282a452333ac55eb38cc567389bb27888c677afd55232f0671e090fd65117"), "hello"},
-			{MustParseHash("4dcf693736c95f8db7ac52feb6ddbed81ff5292e6622511dc039419b81380154"), "world"},
-		},
+	incompat := NewInMemoryLogStore()
+	incompat.Logger = logging.DummyLogger{}
+	incompat.entries = []LogEntry{
+		{MustParseHash("b69282a452333ac55eb38cc567389bb27888c677afd55232f0671e090fd65117"), "hello"},
+		{MustParseHash("4dcf693736c95f8db7ac52feb6ddbed81ff5292e6622511dc039419b81380154"), "world"},
 	}
 
 	if err := store.SyncWith(context.Background(), long, MustParseHash("482d70edaa819db458320e7de7b84726b40f1fb43c4bd8c32216360ce5daec61")); err != nil {

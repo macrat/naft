@@ -5,12 +5,17 @@ package main
 import (
 	"context"
 	"fmt"
-	"log"
 	"math/rand"
 	"strings"
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/macrat/naft/logging"
+)
+
+var (
+	Logger = logging.NewLogger(logging.DEBUG)
 )
 
 type InProcessPlayground struct {
@@ -49,7 +54,7 @@ func (p *InProcessPlayground) StartHost(baseContext context.Context, h *Host, re
 	if c, ok := p.Cancels[h]; ok {
 		localContext, _ := context.WithTimeout(baseContext, 10*time.Millisecond)
 		idx, _ := p.Communicators[h].Log.Index(localContext)
-		log.Printf("---------- killed host head index: %d ----------", idx)
+		Logger.Infof("---------- killed host head index: %d ----------", idx)
 
 		c()
 
@@ -83,18 +88,18 @@ func (p *InProcessPlayground) StartAllHosts(baseContext context.Context) {
 func (p *InProcessPlayground) RandomKill(baseContext context.Context, restartDelay time.Duration) {
 	h := p.Hosts[rand.Intn(len(p.Hosts))]
 
-	log.Printf("========== kill %s ==========", h)
+	Logger.Infof("========== kill %s ==========", h)
 	p.StartHost(baseContext, h, restartDelay)
 }
 
 func (p *InProcessPlayground) RandomKillLoop(ctx context.Context, baseContext context.Context, interval time.Duration, restartDelay time.Duration) {
-	log.Printf("========== start kill loop ==========")
+	Logger.Infof("========== start kill loop ==========")
 
 	tick := time.Tick(interval)
 	for {
 		select {
 		case <-ctx.Done():
-			log.Printf("========== stop kill loop ==========")
+			Logger.Infof("========== stop kill loop ==========")
 			return
 		case <-tick:
 		}
@@ -115,7 +120,7 @@ func (p *InProcessPlayground) TickLogLoop(ctx context.Context, interval time.Dur
 
 		localContext, _ := context.WithTimeout(ctx, 10*time.Millisecond)
 		if err := p.AppendLog(localContext, fmt.Sprintf("InProcessPlayground tick count %d", count+1)); err != nil {
-			log.Printf(">>>>>>>>>> failed to append tick log: %s <<<<<<<<<<", err)
+			Logger.Errorf(">>>>>>>>>> failed to append tick log: %s <<<<<<<<<<", err)
 		} else {
 			count++
 		}
@@ -222,9 +227,11 @@ func TestChaosRunning(t *testing.T) {
 	playground := NewInProcessPlayground(
 		hosts,
 		func(h *Host) (LogStore, Manager) {
-			l := &InMemoryLogStore{}
+			l := NewInMemoryLogStore()
+			l.Logger = Logger
 
 			m := NewSimpleManager(h, hosts, l)
+			m.Logger = Logger
 			m.LeaderTTL = 10 * time.Millisecond
 			m.WaitMin = 1 * time.Millisecond
 			m.WaitRand = 9 * time.Millisecond
@@ -241,7 +248,7 @@ func TestChaosRunning(t *testing.T) {
 	tickCount := playground.TickLogLoop(short, 100*time.Millisecond)
 
 	<-long.Done()
-	log.Printf("========== stop all hosts ==========")
+	Logger.Infof("========== stop all hosts ==========")
 
 	referenceHead, err := playground.Communicators[playground.Hosts[0]].Log.Head(context.Background())
 	if err != nil {

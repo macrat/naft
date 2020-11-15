@@ -2,9 +2,10 @@ package main
 
 import (
 	"context"
-	"log"
 	"net/http"
 	"os"
+
+	"github.com/macrat/naft/logging"
 )
 
 func main() {
@@ -16,12 +17,22 @@ func main() {
 		hosts = append(hosts, MustParseHost(addr))
 	}
 
-	store := &InMemoryLogStore{}
+	logger := logging.NewLogger(logging.INFO)
+
+	store := NewInMemoryLogStore()
+	store.Logger = logger
+
 	man := NewSimpleManager(self, hosts, store)
+	man.Logger = logger
+
 	com := NewHTTPCommunicator(man, &http.Client{}, store)
+	com.Logger = logger
 
 	go man.Run(context.Background(), com)
 
-	log.Printf("listen on %s", self.Host)
-	log.Fatal(http.ListenAndServe(self.Host, com))
+	logger.Infof("listen on %s", self.Host)
+	if err := http.ListenAndServe(self.Host, com); err != nil {
+		logger.Errorf("%s", err)
+		os.Exit(-1)
+	}
 }
