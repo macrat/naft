@@ -209,9 +209,7 @@ func getIndexAndHead(ctx context.Context, l LogStore) (index int, head Hash, err
 func (m *SimpleManager) sendRequestVote(ctx context.Context, c Communicator) error {
 	m.logger.Debugf("candidate[%d]: start request vote", m.term.ID+1)
 
-	m.Lock()
 	index, head, err := getIndexAndHead(ctx, m.Log)
-	m.Unlock()
 	if err != nil {
 		return fmt.Errorf("failed to get index and head: %s", err)
 	}
