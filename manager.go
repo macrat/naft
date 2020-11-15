@@ -11,7 +11,7 @@ import (
 )
 
 type SimpleManager struct {
-	sync.RWMutex
+	sync.Mutex
 
 	self              *Host
 	leaderExpire      time.Time
@@ -41,44 +41,26 @@ func NewSimpleManager(self *Host, hosts []*Host, log LogStore) *SimpleManager {
 }
 
 func (m *SimpleManager) IsLeader() bool {
-	m.RLock()
-	defer m.RUnlock()
-
 	return m.term.Leader.Equals(m.self)
 }
 
 func (m *SimpleManager) Leader() *Host {
-	m.RLock()
-	defer m.RUnlock()
-
 	return m.term.Leader
 }
 
 func (m *SimpleManager) IsStable() bool {
-	m.RLock()
-	defer m.RUnlock()
-
 	return m.stable
 }
 
 func (m *SimpleManager) Term() Term {
-	m.RLock()
-	defer m.RUnlock()
-
 	return m.term
 }
 
 func (m *SimpleManager) Self() *Host {
-	m.RLock()
-	defer m.RUnlock()
-
 	return m.self
 }
 
 func (m *SimpleManager) Hosts() []*Host {
-	m.RLock()
-	defer m.RUnlock()
-
 	return m.hosts
 }
 
