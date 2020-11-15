@@ -56,6 +56,10 @@ func (m *SimpleManager) CurrentTerm() Term {
 	return m.term
 }
 
+func (m *SimpleManager) Self() *Host {
+	return m.self
+}
+
 func (m *SimpleManager) Hosts() []*Host {
 	return m.hosts
 }
@@ -266,12 +270,12 @@ func (m *SimpleManager) waitForLeaderExpire(ctx context.Context) {
 	}
 }
 
-func (m *SimpleManager) Run(ctx context.Context, c Communicator) {
+func (m *SimpleManager) Run(ctx context.Context, c Communicator) error {
 	for {
 		select {
 		case <-ctx.Done():
 			m.Logger.Infof("manager: stop manager on %s", m.self)
-			return
+			return nil
 		default:
 		}
 
@@ -282,7 +286,7 @@ func (m *SimpleManager) Run(ctx context.Context, c Communicator) {
 			select {
 			case <-ctx.Done():
 				m.Logger.Infof("manager: stop manager on %s", m.self)
-				return
+				return nil
 			case <-time.After(m.KeepAliveInterval):
 			}
 			continue

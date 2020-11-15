@@ -360,6 +360,28 @@ func (h *HTTPCommunicator) Entries(ctx context.Context) (es []LogEntry, err erro
 	return
 }
 
+func (h *HTTPCommunicator) Run(ctx context.Context) error {
+	server := http.Server{
+		Addr:    h.manager.Self().Host,
+		Handler: h,
+	}
+	errch := make(chan error)
+	defer close(errch)
+
+	go (func(errch chan error) {
+		h.Logger.Infof("listen on %s", h.manager.Self().Host)
+		errch <- server.ListenAndServe()
+	})(errch)
+
+	select {
+	case err := <-errch:
+		return err
+	case <-ctx.Done():
+		server.Close()
+		return nil
+	}
+}
+
 func OperateToAllHosts(ctx context.Context, m MessageSender, targets []*Host, needAgrees int, fun func(ctx context.Context, m MessageSender, target *Host, agree chan bool)) error {
 	if len(targets) == 0 {
 		return nil

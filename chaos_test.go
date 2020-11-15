@@ -219,6 +219,10 @@ func (c InProcessCommunicator) AppendLog(ctx context.Context, payloads []interfa
 	return c.Playground.AppendLog(ctx, payloads)
 }
 
+func (c InProcessCommunicator) Run(_ context.Context) error {
+	return nil
+}
+
 func TestChaosRunning(t *testing.T) {
 	hosts := make([]*Host, 10)
 	for i := range hosts {

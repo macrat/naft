@@ -30,8 +30,7 @@ func main() {
 
 	go man.Run(context.Background(), com)
 
-	logger.Infof("listen on %s", self.Host)
-	if err := http.ListenAndServe(self.Host, com); err != nil {
+	if err := com.Run(context.Background()); err != nil {
 		logger.Errorf("%s", err)
 		os.Exit(-1)
 	}

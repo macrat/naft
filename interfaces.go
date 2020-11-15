@@ -9,11 +9,12 @@ type Manager interface {
 	Leader() *Host
 	IsStable() bool
 	CurrentTerm() Term
+	Self() *Host
 	Hosts() []*Host
 	OnRequestVote(context.Context, Communicator, RequestVoteMessage) error
 	OnAppendLog(context.Context, Communicator, AppendLogMessage) error
 	AppendLog(ctx context.Context, c Communicator, payloads []interface{}) error
-	Run(context.Context, Communicator)
+	Run(context.Context, Communicator) error
 }
 
 type LogReader interface {
@@ -33,6 +34,7 @@ type MessageSender interface {
 type Communicator interface {
 	LogReader
 	MessageSender
+	Run(context.Context) error
 }
 
 type LogStore interface {
