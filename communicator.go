@@ -135,7 +135,7 @@ func (h *HTTPCommunicator) getTerm(w http.ResponseWriter, r *http.Request) {
 	}{
 		IsLeader: h.manager.IsLeader(),
 		IsStable: h.manager.IsStable(),
-		Term:     h.manager.CurrentTerm(),
+		Term:     h.manager.Term(),
 	})
 }
 

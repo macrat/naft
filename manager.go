@@ -61,7 +61,7 @@ func (m *SimpleManager) IsStable() bool {
 	return m.stable
 }
 
-func (m *SimpleManager) CurrentTerm() Term {
+func (m *SimpleManager) Term() Term {
 	m.RLock()
 	defer m.RUnlock()
 

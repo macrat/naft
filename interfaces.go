@@ -10,7 +10,7 @@ type Manager interface {
 	IsLeader() bool
 	Leader() *Host
 	IsStable() bool
-	CurrentTerm() Term
+	Term() Term
 	Self() *Host
 	Hosts() []*Host
 	OnRequestVote(context.Context, Communicator, RequestVoteMessage) error
