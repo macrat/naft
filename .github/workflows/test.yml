@@ -36,3 +36,17 @@ jobs:
         uses: grandcolline/golang-github-actions@v1
         with:
           run: imports
+
+  security:
+    name: Security
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+    steps:
+      - uses: actions/checkout@v2
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v1
+        with:
+          languages: go
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v1
