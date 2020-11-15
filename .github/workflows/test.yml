@@ -23,19 +23,13 @@ jobs:
     name: Static
     runs-on: ubuntu-latest
     steps:
+      - uses: actions/setup-go@v1
+        with:
+          go-version: 1.15
       - uses: actions/checkout@v2
-      - name: go fmt
-        uses: grandcolline/golang-github-actions@v1
-        with:
-          run: fmt
-      - name: go vet
-        uses: grandcolline/golang-github-actions@v1
-        with:
-          run: vet
-      - name: check imports
-        uses: grandcolline/golang-github-actions@v1
-        with:
-          run: imports
+      - run: go vet
+      - run: go fmt
+        uses: Jerome1337/gofmt-action@v1
 
   security:
     name: Security
