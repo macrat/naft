@@ -225,7 +225,7 @@ func getIndexAndHead(ctx context.Context, l LogStore) (index int, head Hash, err
 }
 
 func (m *SimpleManager) sendRequestVote(ctx context.Context, c Communicator) error {
-	m.logger.Debugf("candidate[%d]: start request vote", m.term.ID+1)
+	m.logger.Debugf("candidate[%d]: start request vote", m.Term().ID+1)
 
 	index, head, err := getIndexAndHead(ctx, m.Log)
 	if err != nil {
@@ -253,23 +253,28 @@ func (m *SimpleManager) sendRequestVote(ctx context.Context, c Communicator) err
 
 	if err != nil {
 		m.logger.Debugf("candidate[%d]: failed to promote to leader: %s", msg.Term.ID, err)
-		m.promoteFailures++
-	} else {
-		m.logger.Infof("candidate[%d]: promoted to leader", msg.Term.ID)
-		m.promoteFailures = 0
-		m.stable = true
-
 		m.Lock()
-		m.term = msg.Term
+		m.promoteFailures++
 		m.Unlock()
 
-		// DEBUG BEGIN
-		if err := m.AppendLog(ctx, c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, msg.Term.ID)}); err != nil {
-			m.logger.Errorf("debug: failed to append log: %s", err)
-		}
-		// DEBUG END
+		return err
 	}
-	return err
+
+	m.logger.Infof("candidate[%d]: promoted to leader", msg.Term.ID)
+
+	m.Lock()
+	m.promoteFailures = 0
+	m.stable = true
+	m.term = msg.Term
+	m.Unlock()
+
+	// DEBUG BEGIN
+	if err := m.AppendLog(ctx, c, []interface{}{fmt.Sprintf("%s: I'm promoted to leader of term %d", m.self, msg.Term.ID)}); err != nil {
+		m.logger.Errorf("debug: failed to append log: %s", err)
+	}
+	// DEBUG END
+
+	return nil
 }
 
 func (m *SimpleManager) waitForLeaderExpire(ctx context.Context) {
