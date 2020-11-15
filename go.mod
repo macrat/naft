@@ -1,4 +1,4 @@
-module raft
+module github.com/macrat/naft
 
 go 1.14
 
