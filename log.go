@@ -107,10 +107,13 @@ func NewInMemoryLogStore() *InMemoryLogStore {
 }
 
 func (l *InMemoryLogStore) Entries(_ context.Context) ([]LogEntry, error) {
+	l.RLock()
+	defer l.RUnlock()
+
 	if l.entries == nil {
 		return []LogEntry{}, nil
 	}
-	return l.entries, nil
+	return l.entries[:], nil
 }
 
 func (l *InMemoryLogStore) lastEntry() *LogEntry {
@@ -133,6 +136,9 @@ func (l *InMemoryLogStore) Head(_ context.Context) (Hash, error) {
 }
 
 func (l *InMemoryLogStore) Index(_ context.Context) (int, error) {
+	l.RLock()
+	defer l.RUnlock()
+
 	return len(l.entries), nil
 }
 
