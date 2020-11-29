@@ -17,7 +17,7 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-
       - run: go get -d
-      - run: go test ./... -tags=chaos -race -v
+      - run: go test ./... -tags=chaos -v
 
   vet:
     name: Static
