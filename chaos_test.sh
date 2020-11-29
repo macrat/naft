@@ -1,1 +1,1 @@
-go test -tags=chaos
+go test -tags=chaos -race
